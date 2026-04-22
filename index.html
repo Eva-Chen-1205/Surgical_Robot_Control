@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yuhan Motor Control</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">STM32 Robot Hand Control</p>
+        <h1>Yuhan Motor Console</h1>
+        <p class="hero-copy">
+          這一版把控制頁、STM32 韌體、PID 調參都放進同一包。
+          頁面可以送 5 軸 target，也可以直接調 Kp / Ki / Kd、hold、backlash。
+        </p>
+      </div>
+      <div class="hero-card">
+        <div class="metric">
+          <span class="metric-label">Connection</span>
+          <strong id="connectionState">Disconnected</strong>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Log Samples</span>
+          <strong id="sampleCount">0</strong>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Trajectory Points</span>
+          <strong id="trajectoryCount">0</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <div class="panel-title-row">
+          <h2>Serial</h2>
+          <span class="panel-hint">請用 Edge 或 Chrome</span>
+        </div>
+
+        <div class="serial-grid">
+          <label class="field">
+            <span>Baud Rate</span>
+            <input id="baudRate" type="number" value="115200" min="9600" step="100">
+          </label>
+          <label class="field">
+            <span>Auto Send</span>
+            <select id="autoSendMode">
+              <option value="change" selected>Change Only</option>
+              <option value="interval">Interval</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Interval (ms)</span>
+            <input id="sendIntervalMs" type="number" value="50" min="5" step="5">
+          </label>
+          <label class="field">
+            <span>Jog Step</span>
+            <input id="jogStep" type="number" value="500" step="10">
+          </label>
+        </div>
+
+        <div class="button-row">
+          <button id="connectBtn" class="primary">Connect</button>
+          <button id="disconnectBtn">Disconnect</button>
+          <button id="sendNowBtn">Send Now</button>
+          <button id="stopAllBtn" class="danger">Stop All</button>
+          <button id="zeroTargetsBtn">Zero Targets</button>
+          <button id="zeroEncoderBtn">Zero Encoder</button>
+        </div>
+
+        <div class="status-row">
+          <div>
+            <span class="status-label">Last TX</span>
+            <strong id="lastTxLabel">-</strong>
+          </div>
+          <div>
+            <span class="status-label">Last RX</span>
+            <strong id="lastRxLabel">-</strong>
+          </div>
+          <div>
+            <span class="status-label">Protocol</span>
+            <strong>YH + 5 x int32</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row">
+          <h2>Trajectory</h2>
+          <span class="panel-hint">支援 CSV / TXT，每列 5 個數字</span>
+        </div>
+
+        <div class="trajectory-grid">
+          <label class="field">
+            <span>Trajectory File</span>
+            <input id="trajectoryFile" type="file" accept=".csv,.txt">
+          </label>
+          <label class="field">
+            <span>Playback Interval (ms)</span>
+            <input id="trajectoryIntervalMs" type="number" value="5" min="1" step="1">
+          </label>
+        </div>
+
+        <div class="button-row">
+          <button id="playTrajectoryBtn" class="primary">Play Trajectory</button>
+          <button id="stopTrajectoryBtn">Stop Trajectory</button>
+          <button id="clearTrajectoryBtn">Clear Trajectory</button>
+        </div>
+
+        <p id="trajectoryStatus" class="subtle-text">尚未載入軌跡檔。</p>
+      </section>
+
+      <section class="panel wide">
+        <div class="panel-title-row">
+          <h2>Motor Targets</h2>
+          <span class="panel-hint">目前直接送 raw encoder/count target</span>
+        </div>
+
+        <div id="motorGrid" class="motor-grid"></div>
+      </section>
+
+      <section class="panel wide">
+        <div class="panel-title-row">
+          <h2>PID Tuning</h2>
+          <span class="panel-hint">建議先把 backlash 保持 0，再調 Kp / Kd</span>
+        </div>
+
+        <div class="button-row">
+          <button id="refreshConfigBtn">Read Config</button>
+          <button id="applyAllConfigBtn" class="primary">Apply All</button>
+          <button id="disableBacklashBtn">Backlash Off All</button>
+          <button id="disableHoldBtn">Hold Off All</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Motor</th>
+                <th>Kp</th>
+                <th>Ki</th>
+                <th>Kd</th>
+                <th>Hold PWM</th>
+                <th>Hold ms</th>
+                <th>Deadband</th>
+                <th>Backlash</th>
+                <th>Max PWM</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="pidTableBody"></tbody>
+          </table>
+        </div>
+
+        <p id="pidStatus" class="subtle-text">已採用保守預設值：hold 關閉、backlash 關閉。</p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row">
+          <h2>Encoder Monitor</h2>
+          <span class="panel-hint">可解析 `ENC:` / `CFG,`</span>
+        </div>
+
+        <div class="button-row">
+          <button id="startLogBtn" class="primary">Start Log</button>
+          <button id="stopLogBtn">Stop Log</button>
+          <button id="clearLogBtn">Clear Log</button>
+          <button id="exportCsvBtn">Export CSV</button>
+          <button id="exportRawBtn">Export Raw TXT</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Motor</th>
+                <th>Target</th>
+                <th>Encoder</th>
+                <th>Delta</th>
+                <th>Current PWM</th>
+                <th>Max PWM</th>
+              </tr>
+            </thead>
+            <tbody id="encoderTableBody"></tbody>
+          </table>
+        </div>
+
+        <p id="logStatus" class="subtle-text">尚未開始記錄。</p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row">
+          <h2>Serial Log</h2>
+          <span class="panel-hint">顯示最近 200 行</span>
+        </div>
+        <pre id="serialLog" class="serial-log">Waiting for serial data...</pre>
+      </section>
+    </main>
+  </div>
+
+  <template id="motorCardTemplate">
+    <article class="motor-card">
+      <div class="motor-card-top">
+        <h3></h3>
+        <span class="motor-badge">Raw Count</span>
+      </div>
+      <label class="field">
+        <span>Target</span>
+        <input class="target-input" type="number" step="1">
+      </label>
+      <input class="target-slider" type="range" min="-300000" max="300000" step="100">
+      <div class="button-row compact">
+        <button class="jog-down">- Step</button>
+        <button class="send-single">Send</button>
+        <button class="jog-up">+ Step</button>
+      </div>
+      <div class="card-stats">
+        <div>
+          <span class="status-label">Encoder</span>
+          <strong class="encoder-value">0</strong>
+        </div>
+        <div>
+          <span class="status-label">Error</span>
+          <strong class="error-value">0</strong>
+        </div>
+        <div>
+          <span class="status-label">PWM</span>
+          <strong class="pwm-value">0 / 0</strong>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <template id="pidRowTemplate">
+    <tr>
+      <td class="pid-motor-label"></td>
+      <td><input class="pid-kp" type="number" step="0.01"></td>
+      <td><input class="pid-ki" type="number" step="0.001"></td>
+      <td><input class="pid-kd" type="number" step="0.01"></td>
+      <td><input class="pid-hold-pwm" type="number" step="1"></td>
+      <td><input class="pid-hold-ms" type="number" step="1"></td>
+      <td><input class="pid-deadband" type="number" step="1"></td>
+      <td><input class="pid-backlash" type="number" step="1"></td>
+      <td><input class="pid-max-pwm" type="number" step="1" min="0" max="255"></td>
+      <td>
+        <div class="button-row compact">
+          <button class="pid-read">Read</button>
+          <button class="pid-apply">Apply</button>
+        </div>
+      </td>
+    </tr>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>
