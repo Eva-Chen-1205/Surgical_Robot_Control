@@ -4,7 +4,7 @@ namespace {
 constexpr int PWM_DEADBAND = 8;
 }
 
-Motor::Motor() : _pinA(-1), _pinB(-1) {}
+Motor::Motor() : _pinA(-1), _pinB(-1), _invert(false) {}
 
 void Motor::init(int pinA, int pinB) {
   _pinA = pinA;
@@ -14,9 +14,17 @@ void Motor::init(int pinA, int pinB) {
   stop();
 }
 
+void Motor::setInvert(bool invert) { _invert = invert; }
+
+bool Motor::isInverted() const { return _invert; }
+
 void Motor::drive(int pwm) {
   if (_pinA < 0 || _pinB < 0) {
     return;
+  }
+
+  if (_invert) {
+    pwm = -pwm;
   }
 
   if (pwm > 255) {

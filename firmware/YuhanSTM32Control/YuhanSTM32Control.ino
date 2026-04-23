@@ -78,7 +78,11 @@ void printConfig(int index) {
   Serial.print(",");
   Serial.print(fingers[index].getBacklash());
   Serial.print(",");
-  Serial.println(fingers[index].getMaxPwm());
+  Serial.print(fingers[index].getMaxPwm());
+  Serial.print(",");
+  Serial.print(fingers[index].getMotorInvert() ? 1 : 0);
+  Serial.print(",");
+  Serial.println(fingers[index].getEncoderInvert() ? 1 : 0);
 }
 
 void printAllConfigs() {
@@ -101,17 +105,18 @@ void printPwmOutputs() {
 }
 
 void configureFingers() {
-  // Backlash defaults to 0 while tuning because compensation often worsens hunting near target.
-  fingers[0].init(0, PB6, PB7, 0, 0.30f, 0.0f, 0.18f, 0, 0, 30, 0);
-  fingers[1].init(1, PA2, PA3, 1, 0.30f, 0.0f, 0.18f, 0, 0, 30, 0);
-  fingers[2].init(2, PB0, PB1, 2, 0.08f, 0.0f, 0.01f, 0, 0, 30, 0);
-  fingers[3].init(3, PB8, PB9, 3, 0.18f, 0.0f, 0.03f, 0, 0, 30, 0);
+  // Saved baseline after single-axis tuning. Keep hold/backlash off before trajectory tests.
+  fingers[0].init(0, PB6, PB7, 0, 0.27f, 0.0f, 0.01f, 0, 0, 30, 0);
+  fingers[1].init(1, PA2, PA3, 1, 0.30f, 0.001f, 0.01f, 0, 0, 100, 0);
+  fingers[2].init(2, PB0, PB1, 2, 0.35f, 0.0f, 0.01f, 0, 0, 100, 0);
+  fingers[3].init(3, PB8, PB9, 3, 0.20f, 0.0f, 0.01f, 0, 0, 30, 0);
   fingers[4].init(4, PA0, PA1, 4, 2.00f, 0.0f, 0.0f, 0, 0, 3, 0);
-  fingers[0].setMaxPwm(40);
-  fingers[1].setMaxPwm(40);
-  fingers[2].setMaxPwm(35);
-  fingers[3].setMaxPwm(35);
+  fingers[0].setMaxPwm(100);
+  fingers[1].setMaxPwm(100);
+  fingers[2].setMaxPwm(100);
+  fingers[3].setMaxPwm(80);
   fingers[4].setMaxPwm(25);
+  fingers[3].setMotorInvert(true);
 }
 
 void applyTargets() {
@@ -217,6 +222,30 @@ void processCommandLine(char* line) {
     return;
   }
 
+  if (strcmp(token, "!MOTORINV") == 0) {
+    long invert = 0;
+    if (parseMotorIndex(strtok(nullptr, ","), motorIndex) &&
+        parseIntValue(strtok(nullptr, ","), invert)) {
+      fingers[motorIndex].setMotorInvert(invert != 0);
+      printConfig(motorIndex);
+    } else {
+      Serial.println("ERR,MOTORINV");
+    }
+    return;
+  }
+
+  if (strcmp(token, "!ENCINV") == 0) {
+    long invert = 0;
+    if (parseMotorIndex(strtok(nullptr, ","), motorIndex) &&
+        parseIntValue(strtok(nullptr, ","), invert)) {
+      fingers[motorIndex].setEncoderInvert(invert != 0);
+      printConfig(motorIndex);
+    } else {
+      Serial.println("ERR,ENCINV");
+    }
+    return;
+  }
+
   Serial.println("ERR,UNKNOWN");
 }
 
@@ -294,7 +323,9 @@ void updateControl() {
   fingers[0].sendCmd();
   fingers[1].sendCmd();
 
-  const float kSync = 0.5f;
+  // Keep motor 3/4 decoupled while tuning. Cross-coupled sync can mask direction mistakes
+  // and make a single-axis runaway harder to diagnose.
+  const float kSync = 0.0f;
   const int pwmMax = 150;
   const long syncDeadband = 10;
   sendParallelPair(fingers[2], fingers[3], kSync, pwmMax, syncDeadband);
@@ -320,6 +351,8 @@ void setup() {
   Serial.println("HOLD cmd: !HOLD,motor,holdPwm,holdMs,deadband");
   Serial.println("BKL cmd : !BACKLASH,motor,value");
   Serial.println("PWM cmd : !PWM,motor,maxPwm");
+  Serial.println("MINV cmd: !MOTORINV,motor,0|1");
+  Serial.println("EINV cmd: !ENCINV,motor,0|1");
   printAllConfigs();
   printEncoders();
   printPwmOutputs();

@@ -5,6 +5,8 @@
 
 void encoderInit();
 long getEncoderCount(int index);
+void setEncoderInvert(int index, bool invert);
+bool getEncoderInvert(int index);
 void resetEncoderCount(int index);
 void resetAllEncoderCounts();
 

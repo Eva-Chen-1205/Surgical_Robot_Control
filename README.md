@@ -1,15 +1,53 @@
-# Yuhan Motor Console
+﻿# Yuhan Motor Console
 
-這個資料夾是獨立可保存的控制包。之後如果你把其他舊資料夾刪掉，只保留 `D:\Codex\Control\Yuhan_motor`，這一包還是可以繼續用。
+這一包是獨立可用的控制系統，只需要保留：
+- `D:\Codex\Control\Yuhan_motor\index.html`
+- `D:\Codex\Control\Yuhan_motor\app.js`
+- `D:\Codex\Control\Yuhan_motor\styles.css`
+- `D:\Codex\Control\Yuhan_motor\server.py`
+- `D:\Codex\Control\Yuhan_motor\start_console.ps1`
+- `D:\Codex\Control\Yuhan_motor\firmware\YuhanSTM32Control\YuhanSTM32Control.ino`
+- `D:\Codex\Control\Yuhan_motor\firmware\YuhanSTM32Control\encoder_manager.*`
+- `D:\Codex\Control\Yuhan_motor\firmware\YuhanSTM32Control\motor.*`
+- `D:\Codex\Control\Yuhan_motor\firmware\YuhanSTM32Control\finger.*`
 
-它包含兩部分：
-
-- 電腦端控制頁面：`D:\Codex\Control\Yuhan_motor\index.html`
-- STM32 韌體：`D:\Codex\Control\Yuhan_motor\firmware\YuhanSTM32Control\YuhanSTM32Control.ino`
+這一版只依賴 `Yuhan_motor` 內的檔案，不需要再讀其他舊資料夾。
 
 ---
 
-## 檔案結構
+## 功能
+
+### 電腦端頁面
+- 連線 STM32 序列埠
+- 送出 5 軸 target
+- 單軸 `+/- step` jog
+- 播放 trajectory 檔案
+- 支援 `Raw Count` / `Degree` / `Radian` 輸入模式
+- 顯示 encoder 值
+- 顯示目前 PWM 輸出與 PWM 上限
+- 匯出 encoder log 為 `.csv`
+- 每軸調整：
+  - `Kp`
+  - `Ki`
+  - `Kd`
+  - `holdPwm`
+  - `holdMs`
+  - `deadband`
+  - `backlash`
+  - `maxPwm`
+  - `motorInvert`
+  - `encoderInvert`
+
+### STM32 韌體
+- 接收 5 軸 target frame
+- 執行 5 軸位置控制
+- 回傳 encoder 與 PWM
+- 接收 PID / hold / backlash / max PWM / invert 參數更新
+- 預設將第 3、4 軸同步補償關閉，方便單軸除錯
+
+---
+
+## 目錄
 
 ```text
 Yuhan_motor/
@@ -34,134 +72,442 @@ Yuhan_motor/
 
 ---
 
-## 這一包現在能做什麼
+## 使用步驟
 
-### 電腦端頁面
+### 1. 燒錄 STM32
 
-- 連接 STM32
-- 送 5 軸 target
-- 手動 `+/-` jog
-- 播放軌跡檔
-- 顯示 encoder
-- 顯示目前 PWM 輸出與 PWM 上限
-- 匯出 encoder log 成 `.csv`
-- 調每一軸的：
-  - `Kp`
-  - `Ki`
-  - `Kd`
-  - `holdPwm`
-  - `holdMs`
-  - `deadband`
-  - `backlash`
-  - `maxPwm`
-
-### STM32 韌體
-
-- 接收 5 軸目標值
-- 執行 5 軸控制
-- 讀 encoder
-- 回傳 encoder 與 PWM
-- 接收 PID / hold / backlash / max PWM 參數更新
-
----
-
-## 詳細使用步驟
-
-### A. 先燒 STM32
-
-1. 安裝 Arduino IDE 2.x
-2. 安裝 STM32 Arduino Core
+1. 開 Arduino IDE 2.x。
+2. 安裝 STM32 Arduino Core。
 3. 開啟：
-
    `D:\Codex\Control\Yuhan_motor\firmware\YuhanSTM32Control\YuhanSTM32Control.ino`
+4. 選對 STM32 板子。
+5. 選對 COM Port。
+6. 選對 Upload Method。
+7. 按 `Verify`。
+8. 按 `Upload`。
 
-4. 選對你的 STM32 板子
-5. 選對 COM Port
-6. 選對 Upload Method
-7. 按 `Verify`
-8. 按 `Upload`
+### 2. 開控制頁
 
-### B. 開控制頁
-
-1. 開 PowerShell
-2. 進到：
-
+1. 用 PowerShell 進到：
    `D:\Codex\Control\Yuhan_motor`
-
-3. 執行：
+2. 執行：
 
 ```powershell
 .\start_console.ps1
 ```
 
-4. 用 Edge 或 Chrome 開：
+3. 用 Edge 或 Chrome 開：
 
 ```text
 http://127.0.0.1:8765
 ```
 
-### C. 連線
+### 3. 連線
 
-1. 按 `Connect`
-2. 選 STM32 的序列埠
-3. 確認右上角變成 `Connected`
-4. 按 `Read Config`
-5. 確認頁面已讀回每軸參數
+1. 按 `Connect`。
+2. 選擇 STM32 的序列埠。
+3. 按 `Read Config`。
+4. 確認頁面顯示 `Connected`。
 
-### D. 安全測試順序
+### 4. 如果要直接用角度
 
-第一次測試時，建議先用這組保守設定：
+1. 到 `Angle Calibration` 填每軸 `Counts / Degree`
+2. 按 `Save Angle Config`
+3. 把 `Target Unit` 切到 `Degree`
+4. 之後：
+   - target 輸入框會改用角度
+   - `Jog Step` 也會改用角度
+   - 前端會自動換算成 count 再送給 STM32
 
+### 5. 如果要直接用弧度
+
+1. `Angle Calibration` 一樣要先填好每軸 `Counts / Degree`
+2. 把 `Target Unit` 切到 `Radian`
+3. 如果是軌跡檔，就把 `Trajectory Unit` 切到 `Radian`
+4. 前端會先把弧度轉成角度，再換成 count 送給 STM32
+
+---
+
+## 最安全的第一次測試設定
+
+先只測單軸，建議從第四軸開始時先用：
 - `Ki = 0`
 - `backlash = 0`
 - `holdPwm = 0`
 - `holdMs = 0`
-- `maxPwm = 15 ~ 20`
+- `maxPwm = 10 ~ 15`
 
-先做：
+然後：
+1. 只改一個很小的 target，例如 `-100` 或 `100`。
+2. 看 encoder 有沒有往你預期的方向變。
+3. 看 `PWM` 是否長時間貼住上限，例如 `15 / 15` 或 `-15 / 15`。
+4. 如果方向不對，先不要調大 `Kp`，先改 `motorInvert` 或 `encoderInvert`。
 
-1. 單軸測試
-2. 小 target
-3. 看 encoder 方向是否正確
-4. 看 `Current PWM` 是否一直撞到 `Max PWM`
+---
 
-### E. encoder 記錄
+## 第四軸方向排查
 
-1. 按 `Start Log`
-2. 做你的 target 測試或軌跡播放
-3. 按 `Stop Log`
-4. 按 `Export CSV`
+如果你看到以下現象：
+- 給負方向 target，但馬達往正方向跑
+- encoder 數值一直往反方向變
+- PWM 一直貼上限
+- 馬達發出逼逼聲，像卡住或一直硬推
 
-### F. 軌跡播放
+這通常不是單純 PID 太大，而是下面其中一個：
+- `motorInvert` 方向錯
+- `encoderInvert` 方向錯
+- `maxPwm` 太大，方向還沒確定前就先撞上限
 
-1. 在 `Trajectory` 區塊選：
+### 建議排查順序
 
-   `D:\Codex\Control\Yuhan_motor\example_trajectory.txt`
+1. 先把第四軸 `maxPwm` 設成 `10`。
+2. `Kp` 先保守，例如 `0.03 ~ 0.08`。
+3. `Ki = 0`、`Kd = 0` 也可以先試。
+4. 只送一個小 target，例如 `-100`。
+5. 觀察：
+   - 如果 target 是負，encoder 也開始往負方向靠近，方向多半是對的。
+   - 如果 target 是負，但 encoder 往正方向跑遠，通常是 `encoderInvert` 錯。
+   - 如果 target 是負，但馬達明顯往相反方向轉，通常先試 `motorInvert`。
 
-2. 設定 `Playback Interval`
-3. 按 `Play Trajectory`
+### `motorInvert` 與 `encoderInvert` 怎麼試
+
+只改一個，不要兩個一起翻。
+
+1. 先翻 `motorInvert`。
+2. 再做一次小 target 測試。
+3. 如果還是錯，再把 `motorInvert` 改回來，改試 `encoderInvert`。
+4. 如果兩個都翻才正常，也可以這樣做，但要記錄下來。
+
+### 什麼情況不要繼續硬推
+
+如果看到以下任一情況，先停：
+- PWM 一直卡在上限
+- encoder 離 target 越來越遠
+- 馬達持續逼逼叫
+- 機構有明顯卡住或拉扯
+
+這時先按 `Stop All`，再回來調 `invert` 或降低 `maxPwm`。
+
+---
+
+## 目前保存的 PID 基準
+
+這是你單軸測試後，準備進入軌跡測試前的基準設定。
+我已經把它們寫進：
+- `D:\Codex\Control\Yuhan_motor\firmware\YuhanSTM32Control\YuhanSTM32Control.ino`
+- `D:\Codex\Control\Yuhan_motor\app.js`
+
+### Saved Baseline
+
+| Motor | Kp | Ki | Kd | Hold PWM | Hold ms | Deadband | Backlash | Max PWM | Motor Inv | Encoder Inv |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| 1 | 0.27 | 0 | 0.01 | 0 | 0 | 30 | 0 | 100 | off | off |
+| 2 | 0.30 | 0.001 | 0.01 | 0 | 0 | 100 | 0 | 100 | off | off |
+| 3 | 0.35 | 0 | 0.01 | 0 | 0 | 100 | 0 | 100 | off | off |
+| 4 | 0.20 | 0 | 0.01 | 0 | 0 | 30 | 0 | 80 | on | off |
+| 5 | 2.00 | 0 | 0 | 0 | 0 | 3 | 0 | 25 | off | off |
+
+### 目前額外保留的條件
+
+- 第 3、4 軸同步補償維持關閉
+- `hold` 先全部關閉
+- `backlash` 先全部關閉
+
+如果之後頁面上的設定被改亂，只要重新燒錄韌體，再按一次 `Read Config`，就能回到這一組基準。
+
+---
+
+## PID 預設組存檔
+
+頁面現在支援把目前的 PID 表格設定存成多組 preset，之後可以再讀回來。
+
+### 能做什麼
+
+- 存目前畫面上的 5 軸 PID / hold / backlash / PWM / invert 設定
+- 一台電腦上保存多組名稱不同的 preset
+- 之後把任一組 preset 載回表格
+- 刪除不需要的 preset
+
+### 使用方式
+
+1. 先把表格中的數值調好
+2. 在 `Preset Name` 輸入名稱
+3. 按 `Save Current PID`
+4. 之後如果要再叫回來：
+   - 在 `Saved Presets` 選擇一組
+   - 按 `Load Selected PID`
+   - 再按 `Apply All` 送到 STM32
+
+### 注意
+
+- 這些 preset 目前是存在**瀏覽器 localStorage**
+- 也就是說：
+  - 同一台電腦、同一個瀏覽器，會保留
+  - 換瀏覽器或清掉瀏覽器資料，preset 可能會消失
+- 韌體內建 baseline 仍然保留在：
+  - `D:\Codex\Control\Yuhan_motor\firmware\YuhanSTM32Control\YuhanSTM32Control.ino`
+
+---
+
+## 角度輸入與校正
+
+頁面現在支援兩種輸入單位：
+- `Raw Count`
+- `Degree`
+- `Radian`
+
+STM32 韌體本身仍然只吃 **count**。
+所以當你在頁面上切到 `Degree` 或 `Radian` 時，前端會先自動換算：
+
+```text
+count = degree * counts_per_degree
+```
+
+如果輸入是弧度，前端會先做：
+
+```text
+degree = radian * 180 / pi
+```
+
+### `Counts / Degree` 是什麼
+
+這代表：
+
+```text
+1 度 = 幾個 encoder count
+```
+
+例如：
+- 如果某軸 `Counts / Degree = 1500`
+- 你輸入 `10 degree`
+- 前端就會送：
+
+```text
+15000 count
+```
+
+### 怎麼設定
+
+1. 在 `Angle Calibration` 表格中，逐軸填入 `Counts / Degree`
+2. 按 `Save Angle Config`
+3. 再把 `Target Unit` 或 `Trajectory Unit` 切到 `Degree`
+
+### 目前內建的理論預設值
+
+根據你提供的規格：
+- encoder: `IE2-512`
+- gear ratio: `546:1`
+- 韌體目前前 4 軸採用 2x decoding
+
+頁面現在一打開就先帶入：
+- Motor 1 ~ 4: `1553.0667 counts/degree`
+- Motor 5: `15.5307 counts/degree`
+
+第 5 軸比較小，是因為目前韌體在
+`D:\Codex\Control\Yuhan_motor\firmware\YuhanSTM32Control\encoder_manager.cpp`
+裡有 `/100` 的特殊縮放。
+
+如果之後你改了 encoder 解碼方式，或第 5 軸縮放邏輯改掉，這些值也要一起更新。
+
+### 存在哪裡
+
+- 這些角度校正值目前存在瀏覽器 `localStorage`
+- 同一台電腦、同一個瀏覽器會保留
+- 換瀏覽器或清掉瀏覽器資料就可能消失
+
+### 頁面會怎麼顯示
+
+- motor card 的 target 可以直接輸入角度
+- encoder 區塊會同時顯示：
+  - 原始 count
+  - 換算後的 degree
+
+---
+
+## 軌跡測試前建議
+
+開始跑 trajectory 前，建議先做這 5 件事：
+
+1. 重新燒錄：
+   `D:\Codex\Control\Yuhan_motor\firmware\YuhanSTM32Control\YuhanSTM32Control.ino`
+2. 開頁面後先按 `Read Config`
+3. 確認第 4 軸仍然是：
+   - `Motor Inv = on`
+   - `Encoder Inv = off`
+4. 先按 `Start Log`
+5. 第一輪 trajectory 先用比較慢的 `Playback Interval`，例如 `10 ms` 或 `20 ms`
+
+### 第一輪 trajectory 建議
+
+- 先用短軌跡
+- 先不要跨太大角度
+- 先不要一次跑很久
+- 跑的時候盯著：
+  - `Current PWM`
+  - `Error`
+  - 第 4 軸 encoder 是否開始往反方向飆
+
+### 如果跑 trajectory 時出現這些狀況
+
+- `PWM` 長時間貼上限
+- encoder 離 target 越來越遠
+- 馬達持續逼逼叫
+- 機構明顯卡住
+
+請立刻：
+1. 按 `Stop All`
+2. 按 `Stop Trajectory`
+3. 匯出 CSV
+4. 保留當次 log 來回看是哪一軸先出問題
+
+---
+
+## Trajectory 檔案格式
+
+trajectory 檔目前支援：
+- `.txt`
+- `.csv`
+
+### 基本規則
+
+- 一行代表一個時間點
+- 每行必須有 **5 個數字**
+- 順序固定是：
+
+```text
+Motor1, Motor2, Motor3, Motor4, Motor5
+```
+
+- 可以用逗號或空白分隔
+- 檔案內不要放表頭
+
+### 如果 `Trajectory Unit = Raw Count`
+
+每一行就是 count：
+
+```text
+0,0,0,0,0
+100,120,50,-30,0
+200,180,80,-60,0
+```
+
+### 如果 `Trajectory Unit = Degree`
+
+每一行就是 degree：
+
+```text
+0,0,0,0,0
+1.5,2.0,0.8,-0.5,0
+3.0,3.5,1.2,-1.0,0
+```
+
+頁面會根據每軸的 `Counts / Degree` 自動換成 count。
+
+### 時間怎麼決定
+
+trajectory 檔本身沒有時間欄位。
+每一行之間的時間由頁面上的：
+
+- `Playback Interval (ms)`
+
+決定。
+
+### 你之前存的是弧度怎麼辦
+
+目前頁面直接支援的是：
+- `count`
+- `degree`
+- `radian`
+
+如果你原本存的是弧度，先做其中一種：
+
+1. 直接把 `Trajectory Unit` 切到 `Radian` 後載入
+2. 或先把弧度轉成 degree 再載入
+3. 或先把弧度轉成 count 再載入
+
+弧度轉角度：
+
+```text
+degree = radian * 180 / pi
+```
+
+---
+
+## `hold` 是什麼
+
+`hold` 的概念是：
+
+**到目標附近後，用一點小輸出把位置撐住，不要滑掉。**
+
+但如果你的機構在不同角度受力差很多，固定的 `holdPwm` 不一定適合所有角度，所以目前可以先關掉：
+- `holdPwm = 0`
+- `holdMs = 0`
+
+### `hold` 和 PID 的差別
+
+- `PID`：把位置拉到目標。
+- `hold`：到了目標附近後，用小力維持住。
+
+### 為什麼目前可以先不用 `hold`
+
+因為你現在比較需要先解決：
+- 方向對不對
+- 會不會 runaway
+- 會不會爆衝
+
+等基本閉迴路穩了，再看要不要做角度相關的補償或 hold。
+
+---
+
+## `backlash` 是什麼
+
+`backlash` 是反向切換時的補償。
+
+但在還沒把單軸方向、PID、PWM 上限穩住之前，建議先關掉：
+- `backlash = 0`
+
+不然它很容易讓你在目標附近看起來更抖、更難判斷真正問題。
+
+---
+
+## PWM 代表什麼
+
+PWM 可以理解成馬達輸出的力道上限。
+
+### `Current PWM`
+- 目前控制器真正送出去的輸出。
+
+### `Max PWM`
+- 這一軸允許的最大輸出上限。
+- 韌體最後會把輸出限制在 `-maxPwm ~ +maxPwm`。
+
+### PWM 太大會怎樣
+- 容易爆衝
+- 方向錯時特別危險
+- 容易發熱
+- 容易在目標附近來回震盪
+
+### PWM 太小會怎樣
+- 推不動
+- 只有逼逼聲，encoder 幾乎不動
+- 克服不了靜摩擦
 
 ---
 
 ## 通訊格式
 
-### 1. 送給 STM32 的 target frame
+### 1. 電腦送到 STM32 的 target frame
 
-頁面送給 STM32 的 target 不是裸 20 bytes，而是：
-
+頁面送的是：
 - header: `YH`
 - payload: `5 x int32 little-endian`
 
 總長度：
-
 - `2 bytes header`
 - `20 bytes payload`
+- 合計 `22 bytes`
 
-合計：
-
-- `22 bytes`
-
-### 2. STM32 支援的文字命令
+### 2. STM32 可接收的文字命令
 
 ```text
 !GETALL
@@ -170,10 +516,12 @@ http://127.0.0.1:8765
 !HOLD,0,0,0,30
 !BACKLASH,0,0
 !PWM,0,30
+!MOTORINV,0,0
+!ENCINV,0,1
 !ZEROENC
 ```
 
-### 3. STM32 回傳的資料
+### 3. STM32 回傳格式
 
 #### Encoder
 
@@ -181,14 +529,13 @@ http://127.0.0.1:8765
 ENC: 0=123 1=456 2=789 3=10 4=11
 ```
 
-#### 設定值
+#### Config
 
 ```text
-CFG,0,0.3000,0.0000,0.1800,0,0,30,0,40
+CFG,0,0.3000,0.0000,0.1800,0,0,30,0,40,0,1
 ```
 
 欄位順序：
-
 - motor
 - kp
 - ki
@@ -198,228 +545,17 @@ CFG,0,0.3000,0.0000,0.1800,0,0,30,0,40
 - deadband
 - backlash
 - maxPwm
+- motorInvert
+- encoderInvert
 
-#### PWM 狀態
-
-```text
-PWM: 0=12/40 1=0/40 2=-5/35 3=0/35 4=0/25
-```
-
-`PWM:` 這一行的格式是：
-
-- 左邊：目前實際輸出 PWM
-- 右邊：目前限制的最大 PWM
-
-例如：
+#### PWM
 
 ```text
-0=12/40
+PWM: 0=12/40 1=0/40 2=-5/35 3=0/20 4=0/25
 ```
 
-代表：
-
-- 第 0 軸目前實際輸出 `12`
-- 第 0 軸最大允許輸出 `40`
-
----
-
-## `hold` 是什麼
-
-這是目前最重要的概念。
-
-### 一句話版本
-
-`hold` 的意思是：
-
-**「到位置後，持續用一點小力撐住，不要讓機構自己滑掉。」**
-
-### 為什麼需要 hold
-
-如果沒有 `hold`：
-
-1. 馬達移動到目標附近
-2. 控制器覺得「差不多到了」
-3. 輸出變得很小，甚至變成 0
-4. 但如果機構有：
-   - 重力
-   - 拉力
-   - 彈性
-   - 外力
-5. 關節就會慢慢掉下來
-
-所以 `hold` 的工作不是「把它拉到目標」，而是：
-
-**「已經到目標後，幫你撐住。」**
-
-### `hold` 和 PID 的差別
-
-可以把控制分成兩個階段：
-
-#### 階段 1：移動到目標
-
-- 誤差大
-- 主要靠 PID
-- 目標是把位置拉近
-
-#### 階段 2：留在目標附近
-
-- 誤差已經很小
-- target 也沒有再變
-- 改用小的固定支撐力
-- 這就是 `hold`
-
-所以：
-
-- `PID`：負責「到目標」
-- `hold`：負責「留在目標」
-
-### 現在這版韌體裡的 `hold` 行為
-
-在目前 `Yuhan_motor` 的韌體中：
-
-1. 當誤差已經進入 `deadband`
-2. 而且 target 已經穩定一小段時間
-3. 就進入 hold 模式
-4. 此時不再用大的 PID 輸出亂打
-5. 改成用小輸出支撐負載
-
-這樣做的目的，是避免：
-
-- 到點後還一直大力修正
-- 造成來回擺動
-- 但又能保留足夠力氣撐住位置
-
----
-
-## `holdPwm`、`holdMs`、`deadband` 各代表什麼
-
-### `holdPwm`
-
-意思是：
-
-**進入 hold 後，要用多大的小輸出撐住位置。**
-
 例如：
-
-- `holdPwm = 0`：完全不撐
-- `holdPwm = 2`：給一點很小的支撐力
-- `holdPwm = 5`：給更大的支撐力
-
-太小會：
-
-- hold 不住
-- 到位後慢慢滑掉
-
-太大會：
-
-- 開始抖
-- 在目標附近來回推
-- 發熱變高
-
-所以 `holdPwm` 要找的是：
-
-**「剛好夠撐住的最小值」**
-
-### `holdMs`
-
-意思是：
-
-**進入穩定區後，要等多久才開始持續 hold。**
-
-例如：
-
-- `holdMs = 0`：一進入穩定區就開始 hold
-- `holdMs = 20`：等 20 ms 再開始 hold
-
-通常：
-
-- 想快點撐住：設 `0`
-- 想保守一點：可設 `20`
-
-### `deadband`
-
-意思是：
-
-**誤差小到什麼程度，才算已經到位。**
-
-只有誤差夠小，系統才會從「移動模式」切到「hold 模式」。
-
-如果 `deadband` 太小：
-
-- 很難進入 hold
-- 容易一直在到位邊緣抖動
-
-如果 `deadband` 太大：
-
-- 還沒真的到位就提早進 hold
-- 精度會下降
-
----
-
-## `hold` 和 `maxPwm` 的關係
-
-這點很重要。
-
-`maxPwm` 是整體安全上限，表示：
-
-**控制器最多只能輸出多大的 PWM。**
-
-所以：
-
-- `holdPwm` 必須小於或等於 `maxPwm`
-
-如果：
-
-- `holdPwm = 5`
-- `maxPwm = 3`
-
-那實際上最多只會輸出到 `3`，不是 `5`
-
-所以當你覺得：
-
-> 為什麼我明明開了 hold，還是撐不住？
-
-要先檢查：
-
-1. `holdPwm` 有沒有太小
-2. `maxPwm` 有沒有把它卡住
-
----
-
-## 調參建議
-
-### 情況 1：會來回擺動
-
-先這樣試：
-
-1. `backlash = 0`
-2. `holdPwm = 0`
-3. `holdMs = 0`
-4. `Ki = 0`
-5. `maxPwm = 20`
-6. 降低 `Kp`
-7. 再小幅增加 `Kd`
-
-### 情況 2：到位後會慢慢滑掉
-
-先這樣試：
-
-1. `holdPwm = 2`
-2. `holdMs = 0`
-3. `maxPwm >= holdPwm`
-4. 如果還 hold 不住，再慢慢加到 `3`、`5`
-5. 如果開始抖，就把 `holdPwm` 往回降
-
-### 情況 3：一開始就爆衝
-
-這時先不要碰 hold，先處理：
-
-1. 檢查方向是不是錯
-2. `Ki = 0`
-3. `backlash = 0`
-4. `maxPwm = 10 ~ 15`
-5. `holdPwm = 0`
-6. 單軸小步測試
+- `3=0/20` 代表第四軸目前輸出是 `0`，上限是 `20`。
 
 ---
 
@@ -427,57 +563,50 @@ PWM: 0=12/40 1=0/40 2=-5/35 3=0/35 4=0/25
 
 目前頁面送的是 **raw count**，不是角度。
 
-也就是說：
-
-- 你現在輸入 `500`
-- 代表的是 `500 count`
-- 不是 `500 度`
-
-角度和 encoder count 的關係通常是：
+關係通常是：
 
 ```text
 角度 = (encoder_count - zero_offset) / counts_per_degree
 ```
 
-但每一軸的 `counts_per_degree` 可能不同，所以不能直接把所有軸都當成同一個角度比例。
+或：
+
+```text
+encoder_count = zero_offset + 角度 * counts_per_degree
+```
+
+也就是說，每一軸都需要知道：
+
+```text
+1 度 = 幾個 encoder count
+```
+
+如果你還沒有標定，請先把現在的 target 當作 raw count 看待，不要直接當角度。
 
 ---
 
-## CSV 會存哪些欄位
+## CSV 會記錄什麼
 
+匯出的 `.csv` 目前包含：
 - `iso_time`
 - `elapsed_ms`
 - `source`
 - `raw_line`
-- `target_0`
-- `target_1`
-- `target_2`
-- `target_3`
-- `target_4`
-- `encoder_0`
-- `encoder_1`
-- `encoder_2`
-- `encoder_3`
-- `encoder_4`
-- `pwm_0`
-- `pwm_1`
-- `pwm_2`
-- `pwm_3`
-- `pwm_4`
+- `target_0 ~ target_4`
+- `encoder_0 ~ encoder_4`
+- `pwm_0 ~ pwm_4`
 
-所以你之後分析時，可以同時看：
-
-- target
-- encoder
-- 誤差
-- PWM 輸出
+這樣之後可以分析：
+- 目標
+- encoder 追隨狀況
+- PWM 是否常常撞上限
+- 哪個時刻開始 runaway
 
 ---
 
 ## 腳位
 
 ### Motor pins
-
 - Motor 0: `PB6`, `PB7`
 - Motor 1: `PA2`, `PA3`
 - Motor 2: `PB0`, `PB1`
@@ -485,7 +614,6 @@ PWM: 0=12/40 1=0/40 2=-5/35 3=0/35 4=0/25
 - Motor 4: `PA0`, `PA1`
 
 ### Encoder pins
-
 - Encoder 0: `PB14`, `PB15`
 - Encoder 1: `PB12`, `PB13`
 - Encoder 2: `PB3`, `PB4`
@@ -494,10 +622,19 @@ PWM: 0=12/40 1=0/40 2=-5/35 3=0/35 4=0/25
 
 ---
 
-## 修改範圍
+## 目前這版針對你現在問題做的保護
 
-這次所有修改都只在：
+- 第四軸預設 `maxPwm` 降到 `20`
+- 第 3、4 軸同步補償先關閉，方便單軸除錯
+- 頁面可直接調整 `motorInvert`
+- 頁面可直接調整 `encoderInvert`
+- 韌體會回報每軸 `Current PWM / Max PWM`
 
-- `D:\Codex\Control\Yuhan_motor`
-
-沒有去動其他資料夾的程式。
+如果你現在要先解第四軸，我建議你這樣做：
+1. 重燒：`D:\Codex\Control\Yuhan_motor\firmware\YuhanSTM32Control\YuhanSTM32Control.ino`
+2. 頁面按 `Read Config`
+3. 第四軸設：`Kp=0.03`、`Ki=0`、`Kd=0`、`maxPwm=10`
+4. `holdPwm=0`、`holdMs=0`、`backlash=0`
+5. 先送 `-100`
+6. 如果方向不對，只翻一個：先試 `motorInvert`，再試 `encoderInvert`
+7. 一旦看到 encoder 離 target 越跑越遠，就立刻 `Stop All`

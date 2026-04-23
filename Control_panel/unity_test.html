@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unity Bridge Test - θ Monitor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #7c4dff;
+            --primary-glow: rgba(124, 77, 255, 0.3);
+            --accent: #00e5ff;
+            --accent-glow: rgba(0, 229, 255, 0.3);
+            --bg: #0a0a12;
+            --surface: #12121e;
+            --surface-light: #1a1a2e;
+            --text: #e8e8f0;
+            --text-dim: #888899;
+            --success: #00e676;
+            --danger: #ff5252;
+            --warning: #ffab40;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px 20px;
+            background-image:
+                radial-gradient(ellipse at 20% 50%, rgba(124, 77, 255, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 50%, rgba(0, 229, 255, 0.06) 0%, transparent 50%);
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-bottom: 30px;
+        }
+
+        .connection-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--surface);
+            border: 1px solid rgba(124, 77, 255, 0.2);
+            border-radius: 12px;
+            padding: 16px 24px;
+            margin-bottom: 30px;
+            width: 100%;
+            max-width: 700px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .connection-bar input {
+            flex: 1;
+            background: var(--bg);
+            border: 1px solid #333;
+            color: var(--text);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .connection-bar input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-connect {
+            background: linear-gradient(135deg, var(--primary), #651fff);
+            color: white;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        .btn-connect:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px var(--primary-glow);
+        }
+
+        .btn-disconnect {
+            background: linear-gradient(135deg, var(--danger), #d50000);
+            color: white;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--danger);
+            box-shadow: 0 0 8px var(--danger);
+            transition: all 0.3s;
+        }
+
+        .status-dot.connected {
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 8px var(--success); }
+            50% { box-shadow: 0 0 16px var(--success); }
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            width: 100%;
+            max-width: 700px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid rgba(124, 77, 255, 0.15);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-full {
+            grid-column: 1 / -1;
+        }
+
+        .card h2 {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card h2::before {
+            content: '';
+            width: 3px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        /* Theta Display */
+        .theta-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .theta-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg);
+            border-radius: 10px;
+            padding: 12px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: border-color 0.3s;
+        }
+
+        .theta-row.updated {
+            border-color: var(--accent);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .theta-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            color: var(--primary);
+            width: 30px;
+            font-size: 0.9rem;
+        }
+
+        .theta-bar-container {
+            flex: 1;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .theta-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 3px;
+            width: 50%;
+            transition: width 0.15s ease-out;
+        }
+
+        .theta-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
+            color: var(--accent);
+            min-width: 90px;
+            text-align: right;
+            font-size: 0.95rem;
+        }
+
+        .theta-deg {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-dim);
+            min-width: 70px;
+            text-align: right;
+            font-size: 0.8rem;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .stat-item {
+            background: var(--bg);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Raw Data Log */
+        .log-container {
+            background: var(--bg);
+            border-radius: 10px;
+            padding: 12px 16px;
+            max-height: 180px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+
+        .log-container::-webkit-scrollbar { width: 4px; }
+        .log-container::-webkit-scrollbar-track { background: transparent; }
+        .log-container::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+        .log-entry { white-space: nowrap; }
+        .log-entry .timestamp { color: #555; }
+        .log-entry .data { color: var(--accent); }
+
+        /* Unity Code Snippet */
+        .code-block {
+            background: var(--bg);
+            border-radius: 10px;
+            padding: 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            color: var(--text-dim);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .code-block .keyword { color: #c792ea; }
+        .code-block .string { color: #c3e88d; }
+        .code-block .comment { color: #546e7a; }
+        .code-block .type { color: #82aaff; }
+        .code-block .number { color: #f78c6c; }
+
+        .copy-btn {
+            background: rgba(124, 77, 255, 0.2);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            float: right;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        @media (max-width: 600px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .connection-bar { flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>🤖 Robot Arm θ Monitor</h1>
+<p class="subtitle">Unity 數位雙生 WebSocket 測試工具</p>
+
+<div class="connection-bar">
+    <div class="status-indicator">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText" style="font-size: 0.8rem; color: var(--text-dim); min-width: 80px;">Disconnected</span>
+    </div>
+    <input type="text" id="serverUrl" placeholder="ws://192.168.x.x:9090/unity" value="">
+    <button class="btn btn-connect" id="connectBtn" onclick="toggleConnection()">Connect</button>
+</div>
+
+<div class="main-grid">
+    <!-- Theta Display Card -->
+    <div class="card card-full">
+        <h2>Joint Angles (θ1 ~ θ5)</h2>
+        <div class="theta-grid" id="thetaGrid">
+            <div class="theta-row" id="row-theta1">
+                <span class="theta-label">θ1</span>
+                <div class="theta-bar-container"><div class="theta-bar" id="bar-theta1"></div></div>
+                <span class="theta-value" id="val-theta1">—</span>
+                <span class="theta-deg" id="deg-theta1">—</span>
+            </div>
+            <div class="theta-row" id="row-theta2">
+                <span class="theta-label">θ2</span>
+                <div class="theta-bar-container"><div class="theta-bar" id="bar-theta2"></div></div>
+                <span class="theta-value" id="val-theta2">—</span>
+                <span class="theta-deg" id="deg-theta2">—</span>
+            </div>
+            <div class="theta-row" id="row-theta3">
+                <span class="theta-label">θ3</span>
+                <div class="theta-bar-container"><div class="theta-bar" id="bar-theta3"></div></div>
+                <span class="theta-value" id="val-theta3">—</span>
+                <span class="theta-deg" id="deg-theta3">—</span>
+            </div>
+            <div class="theta-row" id="row-theta4">
+                <span class="theta-label">θ4</span>
+                <div class="theta-bar-container"><div class="theta-bar" id="bar-theta4"></div></div>
+                <span class="theta-value" id="val-theta4">—</span>
+                <span class="theta-deg" id="deg-theta4">—</span>
+            </div>
+            <div class="theta-row" id="row-theta5">
+                <span class="theta-label">θ5</span>
+                <div class="theta-bar-container"><div class="theta-bar" id="bar-theta5"></div></div>
+                <span class="theta-value" id="val-theta5">—</span>
+                <span class="theta-deg" id="deg-theta5">—</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Card -->
+    <div class="card">
+        <h2>Statistics</h2>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-value" id="msgCount">0</div>
+                <div class="stat-label">Messages</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="msgRate">0</div>
+                <div class="stat-label">Msg/sec</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="latency">—</div>
+                <div class="stat-label">Uptime (s)</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="lastUpdate">—</div>
+                <div class="stat-label">Last Update</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Raw Data Log -->
+    <div class="card">
+        <h2>Data Log</h2>
+        <div class="log-container" id="logContainer">
+            <div class="log-entry"><span class="timestamp">[--:--:--]</span> Waiting for connection...</div>
+        </div>
+    </div>
+
+    <!-- Unity C# Code Snippet -->
+    <div class="card card-full">
+        <h2>Unity C# Integration Code</h2>
+        <button class="copy-btn" onclick="copyUnityCode()">📋 Copy Code</button>
+        <div class="code-block" id="unityCode">
+<span class="comment">// RobotArmReceiver.cs - 掛在 Unity 的 GameObject 上</span>
+<span class="keyword">using</span> UnityEngine;
+<span class="keyword">using</span> System;
+<span class="keyword">using</span> NativeWebSocket;  <span class="comment">// 安裝: https://github.com/endel/NativeWebSocket</span>
+
+<span class="keyword">public class</span> <span class="type">RobotArmReceiver</span> : <span class="type">MonoBehaviour</span>
+{
+    <span class="keyword">public string</span> serverUrl = <span class="string">"ws://192.168.x.x:9090/unity"</span>;
+    <span class="keyword">private</span> <span class="type">WebSocket</span> ws;
+
+    <span class="comment">// θ1~θ5 (radians)</span>
+    <span class="keyword">public double</span>[] theta = <span class="keyword">new double</span>[<span class="number">5</span>];
+
+    [<span class="type">Serializable</span>]
+    <span class="keyword">private class</span> <span class="type">ThetaData</span> {
+        <span class="keyword">public double</span> theta1, theta2, theta3, theta4, theta5;
+    }
+
+    <span class="keyword">async void</span> Start()
+    {
+        ws = <span class="keyword">new</span> <span class="type">WebSocket</span>(serverUrl);
+        ws.OnOpen += () => Debug.Log(<span class="string">"Connected to bridge!"</span>);
+        ws.OnClose += (code) => Debug.Log(<span class="string">"Disconnected."</span>);
+        ws.OnMessage += (bytes) => {
+            <span class="keyword">var</span> msg = System.Text.Encoding.UTF8.GetString(bytes);
+            <span class="keyword">var</span> data = JsonUtility.FromJson&lt;<span class="type">ThetaData</span>&gt;(msg);
+            theta[<span class="number">0</span>] = data.theta1;
+            theta[<span class="number">1</span>] = data.theta2;
+            theta[<span class="number">2</span>] = data.theta3;
+            theta[<span class="number">3</span>] = data.theta4;
+            theta[<span class="number">4</span>] = data.theta5;
+        };
+        <span class="keyword">await</span> ws.Connect();
+    }
+
+    <span class="keyword">void</span> Update()
+    {
+        <span class="keyword">if</span> (ws != <span class="keyword">null</span>) ws.DispatchMessageQueue();
+        <span class="comment">// 用 theta[0]~theta[4] 來驅動你的 Joint Transform</span>
+    }
+
+    <span class="keyword">async void</span> OnApplicationQuit()
+    {
+        <span class="keyword">if</span> (ws != <span class="keyword">null</span>) <span class="keyword">await</span> ws.Close();
+    }
+}
+        </div>
+    </div>
+</div>
+
+<script>
+    let ws = null;
+    let messageCount = 0;
+    let startTime = null;
+    let rateCounter = 0;
+    let rateStartTime = null;
+    const MAX_LOG_ENTRIES = 50;
+
+    function toggleConnection() {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.close();
+        } else {
+            connect();
+        }
+    }
+
+    function connect() {
+        const url = document.getElementById('serverUrl').value.trim();
+        if (!url) {
+            alert('請輸入 Bridge Server 的 WebSocket 地址！');
+            return;
+        }
+
+        try {
+            ws = new WebSocket(url);
+        } catch (e) {
+            alert('無效的 WebSocket URL: ' + e.message);
+            return;
+        }
+
+        ws.onopen = () => {
+            document.getElementById('statusDot').classList.add('connected');
+            document.getElementById('statusText').innerText = 'Connected';
+            document.getElementById('statusText').style.color = 'var(--success)';
+            document.getElementById('connectBtn').innerText = 'Disconnect';
+            document.getElementById('connectBtn').className = 'btn btn-disconnect';
+            startTime = Date.now();
+            rateStartTime = Date.now();
+            addLog('Connected to bridge server!', 'var(--success)');
+        };
+
+        ws.onmessage = (event) => {
+            messageCount++;
+            rateCounter++;
+
+            try {
+                const data = JSON.parse(event.data);
+
+                // Update theta values
+                for (let i = 1; i <= 5; i++) {
+                    const key = `theta${i}`;
+                    if (data[key] !== undefined) {
+                        const val = data[key];
+                        const deg = (val * 180 / Math.PI);
+
+                        document.getElementById(`val-theta${i}`).innerText = val.toFixed(4);
+                        document.getElementById(`deg-theta${i}`).innerText = deg.toFixed(2) + '°';
+
+                        // Update bar (normalize to 0-100%, assuming range -π to π)
+                        const barPercent = Math.max(0, Math.min(100, ((val + Math.PI) / (2 * Math.PI)) * 100));
+                        document.getElementById(`bar-theta${i}`).style.width = barPercent + '%';
+
+                        // Flash effect
+                        const row = document.getElementById(`row-theta${i}`);
+                        row.classList.add('updated');
+                        setTimeout(() => row.classList.remove('updated'), 150);
+                    }
+                }
+
+                // Update stats
+                document.getElementById('msgCount').innerText = messageCount;
+
+                // Calculate rate every second
+                const elapsed = (Date.now() - rateStartTime) / 1000;
+                if (elapsed >= 1) {
+                    document.getElementById('msgRate').innerText = Math.round(rateCounter / elapsed);
+                    rateCounter = 0;
+                    rateStartTime = Date.now();
+                }
+
+                // Uptime
+                if (startTime) {
+                    document.getElementById('latency').innerText = Math.floor((Date.now() - startTime) / 1000);
+                }
+
+                // Last update time
+                const now = new Date();
+                document.getElementById('lastUpdate').innerText =
+                    now.getHours().toString().padStart(2, '0') + ':' +
+                    now.getMinutes().toString().padStart(2, '0') + ':' +
+                    now.getSeconds().toString().padStart(2, '0');
+
+                // Add to log (throttled)
+                if (messageCount % 10 === 0) {
+                    addLog(`θ=[${data.theta1?.toFixed(3)}, ${data.theta2?.toFixed(3)}, ${data.theta3?.toFixed(3)}, ${data.theta4?.toFixed(3)}, ${data.theta5?.toFixed(3)}]`);
+                }
+
+            } catch (e) {
+                addLog('Parse error: ' + e.message, 'var(--danger)');
+            }
+        };
+
+        ws.onclose = () => {
+            document.getElementById('statusDot').classList.remove('connected');
+            document.getElementById('statusText').innerText = 'Disconnected';
+            document.getElementById('statusText').style.color = 'var(--text-dim)';
+            document.getElementById('connectBtn').innerText = 'Connect';
+            document.getElementById('connectBtn').className = 'btn btn-connect';
+            addLog('Disconnected from server.', 'var(--warning)');
+        };
+
+        ws.onerror = (err) => {
+            addLog('Connection error!', 'var(--danger)');
+        };
+    }
+
+    function addLog(message, color = 'var(--accent)') {
+        const container = document.getElementById('logContainer');
+        const now = new Date();
+        const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
+                        now.getMinutes().toString().padStart(2, '0') + ':' +
+                        now.getSeconds().toString().padStart(2, '0');
+
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        entry.innerHTML = `<span class="timestamp">[${timeStr}]</span> <span class="data" style="color: ${color}">${message}</span>`;
+        container.appendChild(entry);
+
+        // Keep only last N entries
+        while (container.children.length > MAX_LOG_ENTRIES) {
+            container.removeChild(container.firstChild);
+        }
+
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function copyUnityCode() {
+        const codeElement = document.getElementById('unityCode');
+        const codeText = codeElement.innerText;
+        navigator.clipboard.writeText(codeText).then(() => {
+            const btn = document.querySelector('.copy-btn');
+            btn.innerText = '✅ Copied!';
+            setTimeout(() => btn.innerText = '📋 Copy Code', 2000);
+        });
+    }
+</script>
+
+</body>
+</html>

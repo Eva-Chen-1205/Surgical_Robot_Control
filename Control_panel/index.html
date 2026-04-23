@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Joystick Kinematics Controller</title>
+    <style>
+        :root {
+            --primary: #00ffcc;
+            --bg: #0a0a0f;
+            --panel: #1a1a24;
+            --text: #e0e0e0;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            height: 100vh;
+            justify-content: center;
+            align-items: center;
+            background-image: radial-gradient(circle at 50% 50%, #1a1a24 0%, #0a0a0f 100%);
+        }
+
+        .container {
+            display: flex;
+            gap: 40px;
+            background: rgba(26, 26, 36, 0.8);
+            border: 1px solid rgba(0, 255, 204, 0.2);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(0, 255, 204, 0.05);
+            backdrop-filter: blur(10px);
+        }
+
+        .joystick-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .joystick-zone {
+            position: relative;
+            width: 250px;
+            height: 250px;
+            background: #111118;
+            border-radius: 50%;
+            border: 2px solid var(--primary);
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 255, 204, 0.1);
+            touch-action: none;
+        }
+
+        .stick {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle at 30% 30%, #4affd9, #00997a);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            cursor: grab;
+            transition: transform 0.1s ease-out;
+        }
+
+        .stick:active {
+            cursor: grabbing;
+        }
+
+        .sliders-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            justify-content: center;
+            min-width: 250px;
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .slider-group label {
+            font-weight: 600;
+            color: var(--primary);
+            letter-spacing: 1px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            background: #333;
+            border-radius: 5px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--primary);
+        }
+
+        .status-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+            background: #0f0f15;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: monospace;
+            border: 1px solid #333;
+        }
+
+        .results-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            justify-content: center;
+            min-width: 220px;
+        }
+
+        .results-panel .status-panel {
+            margin-top: 0;
+        }
+
+        .theta-value {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #222;
+        }
+
+        .theta-value .label {
+            color: #888;
+        }
+
+        .theta-value .value {
+            color: #00ffcc;
+            font-weight: bold;
+        }
+
+        .ws-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ws-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff6666;
+            box-shadow: 0 0 6px #ff6666;
+            transition: all 0.3s;
+        }
+
+        .ws-dot.connected {
+            background: #66ff66;
+            box-shadow: 0 0 6px #66ff66;
+        }
+
+        .ws-dot.bridge-connected {
+            background: #9966ff;
+            box-shadow: 0 0 6px #9966ff;
+        }
+
+        .bridge-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(26, 26, 36, 0.95);
+            border-top: 1px solid rgba(0, 255, 204, 0.2);
+            padding: 12px 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 200;
+            backdrop-filter: blur(10px);
+            font-size: 0.85rem;
+        }
+
+        .bridge-panel label {
+            color: var(--primary);
+            font-weight: 600;
+            letter-spacing: 1px;
+            white-space: nowrap;
+        }
+
+        .bridge-panel input[type="text"] {
+            background: #111;
+            border: 1px solid #333;
+            color: var(--primary);
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-family: monospace;
+            width: 260px;
+        }
+
+        .bridge-btn {
+            background: transparent;
+            border: 1px solid #9966ff;
+            color: #9966ff;
+            padding: 6px 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: monospace;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .bridge-btn:hover {
+            background: rgba(153, 102, 255, 0.2);
+        }
+
+        .bridge-btn.active {
+            background: #9966ff;
+            color: white;
+        }
+
+        .bridge-stats {
+            color: #888;
+            font-family: monospace;
+            font-size: 0.75rem;
+            margin-left: auto;
+        }
+
+        h2 {
+            margin: 0 0 10px 0;
+            color: white;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1.2rem;
+        }
+
+        .position-visualizer {
+            position: relative;
+            width: 250px;
+            height: 150px;
+            background: #111118;
+            border: 1px solid rgba(0, 255, 204, 0.3);
+            border-radius: 10px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        .pos-grid {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            /* 250px / 18格 (每格5度) = 13.88px (Yaw) */
+            /* 150px / 9格 (每格5度) = 16.66px (Pitch) */
+            background-image:
+                linear-gradient(rgba(0, 255, 204, 0.15) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 204, 0.15) 1px, transparent 1px);
+            background-size: 13.88px 16.66px;
+            background-position: center center;
+        }
+
+        .pos-grid::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            /* center line for pitch range 115 to 65 (total 50 deg) */
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: rgba(0, 255, 204, 0.8);
+        }
+
+        .pos-grid::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: rgba(0, 255, 204, 0.8);
+        }
+
+        .pos-dot {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #ff0055;
+            border-radius: 50%;
+            top: 55.55%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px #ff0055;
+            transition: left 0.1s linear, top 0.1s linear;
+            z-index: 10;
+        }
+
+        .axis-label {
+            position: absolute;
+            font-size: 0.6rem;
+            color: #888;
+            pointer-events: none;
+            background: transparent;
+            padding: 0;
+        }
+
+        /* Grid labels X (Yaw) */
+        .grid-lbl-x {
+            bottom: 2px;
+            transform: translateX(-50%);
+        }
+
+        /* Grid labels Y (Pitch) */
+        .grid-lbl-y {
+            left: 4px;
+            transform: translateY(-50%);
+        }
+
+        .reset-btn {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 5px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: monospace;
+            transition: all 0.2s;
+        }
+
+        .reset-btn:hover {
+            background: rgba(0, 255, 204, 0.2);
+        }
+
+        /* --- New Styles --- */
+        .mode-switch-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 100;
+            background: var(--panel);
+            padding: 10px 20px;
+            border-radius: 30px;
+            border: 1px solid rgba(0, 255, 204, 0.3);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider-toggle {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #333;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider-toggle:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider-toggle {
+            background-color: var(--primary);
+        }
+
+        input:checked+.slider-toggle:before {
+            transform: translateX(26px);
+        }
+
+        .disabled-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 15, 0.7);
+            z-index: 50;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            border-radius: 20px;
+            backdrop-filter: blur(2px);
+            color: var(--primary);
+            font-weight: bold;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .manual-mode-active .disabled-overlay {
+            display: none;
+        }
+
+        .trajectory-mode-active #manualControls .disabled-overlay {
+            display: flex;
+        }
+
+        .trajectory-mode-active #trajectoryPanel {
+            display: flex;
+        }
+
+        .manual-mode-active #trajectoryPanel {
+            display: none;
+        }
+
+        .trajectory-panel {
+            flex-direction: column;
+            gap: 20px;
+            min-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .point-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr) 40px;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .point-row input {
+            background: #111;
+            border: 1px solid #333;
+            color: var(--primary);
+            padding: 5px;
+            border-radius: 4px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .point-row label {
+            font-size: 0.7rem;
+            color: #888;
+            text-align: center;
+        }
+
+        .point-header {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr) 40px;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+
+        .btn-add {
+            background: var(--primary);
+            color: black;
+            border: none;
+            padding: 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .btn-remove {
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            height: 28px;
+        }
+
+        .btn-export {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 20px;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .btn-export:hover {
+            background: var(--primary);
+            color: black;
+        }
+
+        /* Custom scrollbar */
+        .trajectory-panel::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .trajectory-panel::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .trajectory-panel::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 10px;
+        }
+
+        .trajectory-panel::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="mode-switch-container">
+        <span style="font-weight: bold; color: #888;">MANUAL</span>
+        <label class="switch">
+            <input type="checkbox" id="modeToggle" onchange="toggleMode()">
+            <span class="slider-toggle"></span>
+        </label>
+        <span style="font-weight: bold; color: var(--primary);">TRAJECTORY</span>
+    </div>
+
+    <div class="container manual-mode-active" id="mainContainer">
+        <div id="manualControls" style="display: flex; gap: 40px; position: relative;">
+            <div class="disabled-overlay">Manual Control Disabled</div>
+
+            <div class="joystick-panel">
+                <h2>Orientation (Yaw/Pitch)</h2>
+                <div class="joystick-zone" id="joystickZone">
+                    <div class="stick" id="stick"></div>
+                </div>
+
+                <div class="position-visualizer" id="posViz">
+                    <div class="pos-grid"></div>
+                    <!-- X Axis (Yaw) Labels -->
+                    <span class="axis-label grid-lbl-x" style="left: 0%;">L 45°</span>
+                    <span class="axis-label grid-lbl-x" style="left: 16.66%;">-30°</span>
+                    <span class="axis-label grid-lbl-x" style="left: 33.33%;">-15°</span>
+                    <span class="axis-label grid-lbl-x" style="left: 50%; color: #00ffcc;">0°</span>
+                    <span class="axis-label grid-lbl-x" style="left: 66.66%;">15°</span>
+                    <span class="axis-label grid-lbl-x" style="left: 83.33%;">30°</span>
+                    <span class="axis-label grid-lbl-x" style="left: 100%; transform: translateX(-100%);">R 45°</span>
+
+                    <!-- Y Axis (Pitch) Labels -->
+                    <span class="axis-label grid-lbl-y" style="top: 0%;">115° U</span>
+                    <span class="axis-label grid-lbl-y" style="top: 20%;">105°</span>
+                    <span class="axis-label grid-lbl-y" style="top: 40%;">&nbsp; 95°</span>
+                    <span class="axis-label grid-lbl-y" style="top: 50%; color: #00ffcc;">&nbsp; 90°</span>
+                    <span class="axis-label grid-lbl-y" style="top: 70%;">&nbsp; 80°</span>
+                    <span class="axis-label grid-lbl-y" style="top: 90%;">&nbsp; 70°</span>
+                    <span class="axis-label grid-lbl-y" style="top: 100%; transform: translateY(-100%);">&nbsp; 65°
+                        D</span>
+
+                    <div class="pos-dot" id="posDot"></div>
+                </div>
+
+                <div class="status-panel">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>Yaw: <span id="valYaw">-0.00</span>°</div>
+                        <div>Pitch: <span id="valPitch">69.84</span>°</div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="reset-btn" onclick="resetPosition()">Reset</button>
+                            <button class="reset-btn" style="border-color: #9966ff; color: #9966ff;"
+                                onclick="smoothReturn()">回傳</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sliders-panel">
+                <h2>Position</h2>
+
+                <div class="slider-group">
+                    <label>X Axis <span id="valX">113.81</span></label>
+                    <input type="range" id="sliderX" min="110" max="180" step="0.1" value="113.8079">
+                </div>
+
+                <div class="slider-group">
+                    <label>Y Axis <span id="valY">-0.00</span></label>
+                    <input type="range" id="sliderY" min="-15" max="15" step="0.1" value="-0.0045">
+                </div>
+
+                <div class="slider-group">
+                    <label>Z Axis <span id="valZ">-10.04</span></label>
+                    <input type="range" id="sliderZ" min="-25" max="0" step="0.1" value="-10.0357">
+                </div>
+
+                <div class="status-panel">
+                    <div class="ws-status">
+                        <div class="ws-dot" id="wsDot"></div>
+                        <span id="serverStatus">Connecting...</span>
+                    </div>
+                    <div style="font-size: 0.8rem; color: #888">Sent: <br><span id="matrixOut">[-0.00, 69.84, -10.04,
+                            -0.00, 113.81]</span></div>
+
+                </div>
+            </div>
+
+            <div class="results-panel">
+                <h2>IK Results (θ)</h2>
+                <div class="status-panel">
+                    <div class="theta-value"><span class="label">θ1</span><span class="value" id="t1">—</span></div>
+                    <div class="theta-value"><span class="label">θ2</span><span class="value" id="t2">—</span></div>
+                    <div class="theta-value"><span class="label">θ3</span><span class="value" id="t3">—</span></div>
+                    <div class="theta-value"><span class="label">θ4</span><span class="value" id="t4">—</span></div>
+                    <div class="theta-value"><span class="label">θ5</span><span class="value" id="t5">—</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="trajectory-panel" id="trajectoryPanel">
+            <h2>Trajectory Generator</h2>
+
+            <div style="margin-bottom: 20px;">
+                <div class="point-header">
+                    <label>Yaw</label><label>Pitch</label><label>Z</label><label>Y</label><label>X</label><span></span>
+                </div>
+                <div class="point-row">
+                    <input type="number" step="0.1" value="-0.0031" id="startYaw">
+                    <input type="number" step="0.1" value="69.8409" id="startPitch">
+                    <input type="number" step="0.1" value="-10.0357" id="startZ">
+                    <input type="number" step="0.1" value="-0.0045" id="startY">
+                    <input type="number" step="0.1" value="113.8079" id="startX">
+                    <span style="font-size: 0.6rem; color: var(--primary); text-align: center;">START</span>
+                </div>
+            </div>
+
+            <div id="endPointsContainer">
+                <h3 style="font-size: 0.9rem; color: var(--primary); margin-bottom: 10px;">End Points</h3>
+                <!-- Dynamic rows will be added here -->
+            </div>
+
+            <button class="btn-add" onclick="addEndPointRow()">+ Add End Point</button>
+
+            <button class="btn-export" onclick="generateAndExportTrajectory()">Generate & Export Trajectory</button>
+
+            <div class="status-panel" style="margin-top: 20px;">
+                <div id="exportStatus" style="color: #888;">Ready to generate...</div>
+                <div id="exportProgress"
+                    style="width: 0%; height: 2px; background: var(--primary); transition: width 0.3s; margin-top: 5px;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bridge Server Connection Panel -->
+    <div class="bridge-panel">
+        <label>🌐 BRIDGE</label>
+        <div class="ws-status">
+            <div class="ws-dot" id="bridgeDot"></div>
+            <span id="bridgeStatus" style="color: #888;">Disconnected</span>
+        </div>
+        <input type="text" id="bridgeUrl" placeholder="ws://192.168.x.x:9090/controller">
+        <button class="bridge-btn" id="bridgeBtn" onclick="toggleBridge()">Connect</button>
+        <div class="bridge-stats">
+            <span id="bridgeStats">θ forwarded: 0</span>
+        </div>
+    </div>
+
+    <script>
+        const state = {
+            yaw: -0.0031,     // u(1)
+            pitch: 69.8409,  // u(2)
+            z: -10.0357,     // u(3) A_z
+            y: -0.0045,       // u(4) A_y
+            x: 113.8079,     // u(5)
+            mode: 'manual', // 'manual' or 'trajectory'
+            isMoving: false
+        };
+
+        // Elements
+        const stick = document.getElementById('stick');
+        const zone = document.getElementById('joystickZone');
+
+        // ============== WebSocket ==============
+        let bridgeWs = null;
+
+        // ============== Math Helpers & Inverse Kinematics ==============
+        function deg2rad(deg) { return deg * Math.PI / 180.0; }
+        function rad2deg(rad) { return rad * 180.0 / Math.PI; }
+        function sind(deg) { return Math.sin(deg2rad(deg)); }
+        function cosd(deg) { return Math.cos(deg2rad(deg)); }
+        function tand(deg) { return Math.tan(deg2rad(deg)); }
+        function asind(val) { return rad2deg(Math.asin(val)); }
+        function acosd(val) { return rad2deg(Math.acos(val)); }
+
+        function safe_atand(dy, dx) {
+            if (Math.abs(dx) < 1e-9) return dy > 0 ? 90.0 : -90.0;
+            return rad2deg(Math.atan(dy / dx));
+        }
+        function safe_acosd(v) {
+            if (v > 1.0) return 0.0;
+            if (v < -1.0) return 180.0;
+            return rad2deg(Math.acos(v));
+        }
+
+        function computeIK(pose) {
+            let Yaw = pose.yaw;
+            let Pitch = pose.pitch;
+            let A_z = pose.z;
+            let A_y = pose.y;
+            let u5 = pose.x;
+
+            let B_z = 0, B_y = 0;
+            let C_z = 20, C_y = 0;
+            let r1 = 55, r2 = 77.2;
+            let AB = Math.sqrt(Math.pow(B_z - A_z, 2) + Math.pow(B_y - A_y, 2));
+            let AC = Math.sqrt(Math.pow(C_z - A_z, 2) + Math.pow(C_y - A_y, 2));
+
+            let AB_angle = -safe_atand((B_y - A_y), (B_z - A_z));
+            let angle1 = Math.abs(Yaw - AB_angle);
+            let sin_phi1 = AB * Math.abs(sind(angle1) / r1);
+            if (sin_phi1 > 1.0) sin_phi1 = 1.0;
+            let phi1 = asind(sin_phi1);
+            let DD_1 = Math.abs(r1 / Math.abs(sind(angle1)) * sind(180 - angle1 - phi1));
+            if (isNaN(DD_1) || !isFinite(DD_1)) DD_1 = AB + r1;
+
+            let r1_z = DD_1 * cosd(Yaw) - (B_z - A_z);
+            let r1_y = -DD_1 * sind(Yaw) - (B_y - A_y);
+            let theta1 = -Math.atan2(r1_y, r1_z);
+
+            let AC_angle = -safe_atand((C_y - A_y), (C_z - A_z));
+            let angle2 = Math.abs(Yaw - AC_angle);
+            let sin_phi2 = AC * Math.abs(sind(angle2) / r2);
+            if (sin_phi2 > 1.0) sin_phi2 = 1.0;
+            let phi2 = asind(sin_phi2);
+            let DD_2 = Math.abs(r2 / Math.abs(sind(angle2)) * sind(180 - angle2 - phi2));
+            if (isNaN(DD_2) || !isFinite(DD_2)) DD_2 = AC + r2;
+            let r2_z = DD_2 * cosd(Yaw) - (C_z - A_z);
+            let r2_y = -DD_2 * sind(Yaw) - (C_y - A_y);
+            let theta2 = -Math.atan2(r2_y, r2_z);
+
+            let x = 25;
+            let h1 = DD_1 - 30;
+            let d_total = u5 - 74.2;
+            let d_2 = x * cosd(90.0 - Pitch) + (x * sind(90.0 - Pitch) + h1) * cosd(Pitch) / sind(Pitch);
+            if (isNaN(d_2)) d_2 = 0;
+            let d_1 = d_total - d_2;
+
+            let hart1 = 18, hart2 = 15.05;
+            let thetah_ori = acosd(10.0 / 50.0) + 90.0;
+            let hart3_ori = Math.sqrt(Math.pow(hart1, 2) + Math.pow(hart2, 2) - 2 * hart1 * hart2 * cosd(thetah_ori));
+            let val_acos = (d_1 + 20) / 100.0;
+            if (val_acos > 1.0) val_acos = 1.0;
+            if (val_acos < -1.0) val_acos = -1.0;
+            let thetah_after = acosd(val_acos) + 90.0;
+            let hart3_after = Math.sqrt(Math.pow(hart1, 2) + Math.pow(hart2, 2) - 2 * hart1 * hart2 * cosd(thetah_after));
+
+            let sin_t3_ori = hart2 / hart3_ori * sind(thetah_ori);
+            if (sin_t3_ori > 1.0) sin_t3_ori = 1.0;
+            let t3_ori = asind(sin_t3_ori);
+            let theta3_ori = 2 * t3_ori;
+
+            let sin_t3_after = hart2 / hart3_after * sind(thetah_after);
+            if (sin_t3_after > 1.0) sin_t3_after = 1.0;
+            let t3_after = asind(sin_t3_after);
+            let theta3_after = 2 * t3_after;
+            let theta3 = (theta3_after - theta3_ori) * Math.PI / 180.0;
+
+            let theta5_ori = 46.5;
+            let theta5_deg = h1 / cosd(90.0 - Pitch) + x * tand(90.0 - Pitch);
+            let theta5 = (theta5_deg - theta5_ori) * Math.PI;
+
+            let L1 = 66 + d_1;
+            let h = 18;
+            let thetaa = Pitch + 21;
+            let R = 50;
+            let A = 76.3;
+            let B = 98.07;
+            let beta = safe_atand(L1, h);
+            let alpha = safe_atand(h, L1);
+            let c = Math.sqrt((Math.pow(L1, 2) + Math.pow(h, 2)) + Math.pow(R, 2) - 2 * Math.sqrt(Math.pow(L1, 2) + Math.pow(h, 2)) * R * cosd(thetaa - alpha));
+
+            let cos_theta4_2 = (Math.pow(A, 2) + Math.pow(c, 2) - Math.pow(B, 2)) / (2 * A * c);
+            let cos_theta4_1 = (Math.pow(h, 2) + Math.pow(L1, 2) + Math.pow(c, 2) - Math.pow(R, 2)) / (2 * Math.sqrt(Math.pow(h, 2) + Math.pow(L1, 2)) * c);
+            let theta4_1 = safe_acosd(cos_theta4_1);
+            let theta4_2 = safe_acosd(cos_theta4_2);
+            let theta4_deg = 270 - theta4_1 - theta4_2 - beta;
+
+            let L1_ori = 66;
+            let theta_ori = 70 + 21;
+            let beta_ori = safe_atand(L1_ori, h);
+            let alpha_ori = safe_atand(h, L1_ori);
+            let c_ori = Math.sqrt((Math.pow(L1_ori, 2) + Math.pow(h, 2)) + Math.pow(R, 2) - 2 * Math.sqrt(Math.pow(L1_ori, 2) + Math.pow(h, 2)) * R * cosd(theta_ori - alpha_ori));
+            let cos_theta4_2_ori = (Math.pow(A, 2) + Math.pow(c_ori, 2) - Math.pow(B, 2)) / (2 * A * c_ori);
+            let cos_theta4_1_ori = (Math.pow(h, 2) + Math.pow(L1_ori, 2) + Math.pow(c_ori, 2) - Math.pow(R, 2)) / (2 * Math.sqrt(Math.pow(h, 2) + Math.pow(L1_ori, 2)) * c_ori);
+            let theta4_1_ori = safe_acosd(cos_theta4_1_ori);
+            let theta4_2_ori = safe_acosd(cos_theta4_2_ori);
+            let theta4_ori = 270.0 - theta4_1_ori - theta4_2_ori - beta_ori;
+            let theta4 = (theta4_deg - theta4_ori) * Math.PI / 180.0;
+
+            return { theta1, theta2, theta3, theta4, theta5 };
+        }
+
+        // Mathematical zero point for motors
+        const HOME_POSE = { yaw: -0.0031, pitch: 69.8409, z: -10.0357, y: -0.0045, x: 113.8079 };
+        const HOME_IK = computeIK(HOME_POSE);
+
+        function getMotorAngles(poseObj) {
+            const rawOffset = computeIK(poseObj);
+
+            // Output difference relative to the derived exact home point so it's ZERO at start
+            let finalThetas = {
+                theta1: rawOffset.theta1 - HOME_IK.theta1,
+                theta2: rawOffset.theta2 - HOME_IK.theta2,
+                theta3: rawOffset.theta3 - HOME_IK.theta3,
+                theta4: rawOffset.theta4 - HOME_IK.theta4,
+                theta5: rawOffset.theta5 - HOME_IK.theta5
+            };
+
+            // Zero-snapping for float precision artifacts
+            for (let key in finalThetas) {
+                if (Math.abs(finalThetas[key]) < 1e-9) finalThetas[key] = 0;
+            }
+
+            return finalThetas;
+        }
+
+        function connectWebSocket() {
+            ws = new WebSocket('ws://localhost:8080');
+
+            ws.onopen = () => {
+                document.getElementById('serverStatus').innerText = 'Connected';
+                document.getElementById('serverStatus').style.color = '#66ff66';
+                document.getElementById('wsDot').classList.add('connected');
+                sendData();
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const result = JSON.parse(event.data);
+                    
+                    // Intercept SAVE success/error from C++ server
+                    if (result.status) {
+                        if (result.status === 'success') {
+                            console.log(`✓ 檔案 ${result.file} 由 C++ 伺服器成功存入資料夾！`);
+                        } else {
+                            alert(`寫入失敗: ${result.error}`);
+                        }
+                        return; // Don't process this as a Theta parsing update
+                    }
+
+                    document.getElementById('t1').innerText = result.theta1.toFixed(4);
+                    document.getElementById('t2').innerText = result.theta2.toFixed(4);
+                    document.getElementById('t3').innerText = result.theta3.toFixed(4);
+                    document.getElementById('t4').innerText = result.theta4.toFixed(4);
+                    document.getElementById('t5').innerText = result.theta5.toFixed(4);
+
+                    // Forward θ data to bridge server for Unity digital twin
+                    forwardToBridge(event.data);
+                } catch (e) { }
+            };
+
+            ws.onclose = () => {
+                document.getElementById('serverStatus').innerText = 'Disconnected - Reconnecting...';
+                document.getElementById('serverStatus').style.color = '#ff6666';
+                document.getElementById('wsDot').classList.remove('connected');
+                setTimeout(connectWebSocket, 2000);
+            };
+
+            ws.onerror = () => {
+                ws.close();
+            };
+        }
+        connectWebSocket();
+
+        // ============== Bridge WebSocket (Unity Relay) ==============
+        let bridgeForwardCount = 0;
+
+        function toggleBridge() {
+            if (bridgeWs && bridgeWs.readyState === WebSocket.OPEN) {
+                bridgeWs.close();
+            } else {
+                connectBridge();
+            }
+        }
+
+        function connectBridge() {
+            const url = document.getElementById('bridgeUrl').value.trim();
+            if (!url) {
+                alert('請輸入 Bridge Server 地址！\nExample: ws://192.168.x.x:9090/controller');
+                return;
+            }
+
+            try {
+                bridgeWs = new WebSocket(url);
+            } catch (e) {
+                alert('無效的 URL: ' + e.message);
+                return;
+            }
+
+            bridgeWs.onopen = () => {
+                document.getElementById('bridgeDot').classList.add('bridge-connected');
+                document.getElementById('bridgeStatus').innerText = 'Connected';
+                document.getElementById('bridgeStatus').style.color = '#9966ff';
+                document.getElementById('bridgeBtn').innerText = 'Disconnect';
+                document.getElementById('bridgeBtn').classList.add('active');
+                bridgeForwardCount = 0;
+            };
+
+            bridgeWs.onclose = () => {
+                document.getElementById('bridgeDot').classList.remove('bridge-connected');
+                document.getElementById('bridgeStatus').innerText = 'Disconnected';
+                document.getElementById('bridgeStatus').style.color = '#888';
+                document.getElementById('bridgeBtn').innerText = 'Connect';
+                document.getElementById('bridgeBtn').classList.remove('active');
+            };
+
+            bridgeWs.onerror = () => {
+                bridgeWs.close();
+            };
+        }
+
+        function forwardToBridge(thetaJson) {
+            if (bridgeWs && bridgeWs.readyState === WebSocket.OPEN) {
+                bridgeWs.send(thetaJson);
+                bridgeForwardCount++;
+                if (bridgeForwardCount % 50 === 0) {
+                    document.getElementById('bridgeStats').innerText = `θ forwarded: ${bridgeForwardCount}`;
+                }
+            }
+        }
+
+        // ============== Mode Control ==============
+        function toggleMode() {
+            const isTrajectory = document.getElementById('modeToggle').checked;
+            state.mode = isTrajectory ? 'trajectory' : 'manual';
+
+            const container = document.getElementById('mainContainer');
+            if (state.mode === 'trajectory') {
+                container.classList.remove('manual-mode-active');
+                container.classList.add('trajectory-mode-active');
+                // Sync start point with current state when entering trajectory mode
+                document.getElementById('startYaw').value = state.yaw.toFixed(2);
+                document.getElementById('startPitch').value = state.pitch.toFixed(2);
+                document.getElementById('startZ').value = state.z.toFixed(2);
+                document.getElementById('startY').value = state.y.toFixed(2);
+                document.getElementById('startX').value = state.x.toFixed(2);
+            } else {
+                container.classList.remove('trajectory-mode-active');
+                container.classList.add('manual-mode-active');
+            }
+        }
+
+        // ============== Trajectory Generator ==============
+        let endPointCount = 0;
+        function addEndPointRow() {
+            endPointCount++;
+            const container = document.getElementById('endPointsContainer');
+            const row = document.createElement('div');
+            row.className = 'point-row';
+            row.id = `endPointRow_${endPointCount}`;
+            row.innerHTML = `
+            <input type="number" step="0.1" value="-0.0031" class="end-yaw">
+            <input type="number" step="0.1" value="69.8409" class="end-pitch">
+            <input type="number" step="0.1" value="-10.0357" class="end-z">
+            <input type="number" step="0.1" value="-0.0045" class="end-y">
+            <input type="number" step="0.1" value="113.8079" class="end-x">
+            <button class="btn-remove" onclick="removeEndPointRow(${endPointCount})">×</button>
+        `;
+            container.appendChild(row);
+        }
+
+        function removeEndPointRow(id) {
+            const row = document.getElementById(`endPointRow_${id}`);
+            if (row) row.remove();
+        }
+
+        async function generateAndExportTrajectory() {
+            if (state.mode !== 'trajectory') return;
+
+            const btn = document.querySelector('.btn-export');
+            const status = document.getElementById('exportStatus');
+            const progress = document.getElementById('exportProgress');
+
+            btn.disabled = true;
+            status.innerText = "Exporting...";
+            progress.style.width = '0%';
+
+            const points = [];
+            // Start point
+            points.push({
+                yaw: parseFloat(document.getElementById('startYaw').value),
+                pitch: parseFloat(document.getElementById('startPitch').value),
+                z: parseFloat(document.getElementById('startZ').value),
+                y: parseFloat(document.getElementById('startY').value),
+                x: parseFloat(document.getElementById('startX').value)
+            });
+
+            // End points
+            const rows = document.querySelectorAll('.end-yaw');
+            const ep_pitch = document.querySelectorAll('.end-pitch');
+            const ep_z = document.querySelectorAll('.end-z');
+            const ep_y = document.querySelectorAll('.end-y');
+            const ep_x = document.querySelectorAll('.end-x');
+
+            for (let i = 0; i < rows.length; i++) {
+                points.push({
+                    yaw: parseFloat(rows[i].value),
+                    pitch: parseFloat(ep_pitch[i].value),
+                    z: parseFloat(ep_z[i].value),
+                    y: parseFloat(ep_y[i].value),
+                    x: parseFloat(ep_x[i].value)
+                });
+            }
+
+            if (points.length < 2) {
+                alert("Please add at least one end point!");
+                btn.disabled = false;
+                status.innerText = "Ready to generate...";
+                return;
+            }
+
+            const recordedTrajectory = [];
+
+            // Interpolation and Sending
+            for (let s = 0; s < points.length - 1; s++) {
+                const p1 = points[s];
+                const p2 = points[s + 1];
+
+                const dyaw = p2.yaw - p1.yaw;
+                const dpitch = p2.pitch - p1.pitch;
+                const dz = p2.z - p1.z;
+                const dy = p2.y - p1.y;
+                const dx = p2.x - p1.x;
+
+                const maxDiff = Math.max(
+                    Math.abs(dyaw), Math.abs(dpitch), Math.abs(dz), Math.abs(dy), Math.abs(dx)
+                );
+
+                if (maxDiff === 0) continue;
+
+                const steps = Math.ceil(maxDiff / MAX_STEP);
+
+                for (let i = 1; i <= steps; i++) {
+                    const tau = i / steps;
+                    // 5th-order (quintic) polynomial interpolation for smooth trajectory
+                    const t = 10 * Math.pow(tau, 3) - 15 * Math.pow(tau, 4) + 6 * Math.pow(tau, 5);
+
+                    const iyaw = p1.yaw + dyaw * t;
+                    const ipitch = p1.pitch + dpitch * t;
+                    const iz = p1.z + dz * t;
+                    const iy = p1.y + dy * t;
+                    const ix = p1.x + dx * t;
+
+                    const poseStr = `[${iyaw.toFixed(4)}, ${ipitch.toFixed(4)}, ${iz.toFixed(4)}, ${iy.toFixed(4)}, ${ix.toFixed(4)}]`;
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(poseStr);
+                    }
+                    recordedTrajectory.push(poseStr);
+
+                    // Update progress occasionally
+                    if (i % 100 === 0) {
+                        const totalProgress = ((s + (i / steps)) / (points.length - 1)) * 100;
+                        progress.style.width = `${totalProgress}%`;
+                        await new Promise(r => setTimeout(r, 0)); // Allow UI update
+                    }
+                }
+            }
+
+            progress.style.width = '100%';
+            status.innerText = "Export Complete!";
+            btn.disabled = false;
+
+            // Trigger file download
+            saveFileLocally(recordedTrajectory.join('\n'), "generated_trajectory.txt");
+
+            // Sync manual state to the last point
+            const last = points[points.length - 1];
+            state.yaw = last.yaw;
+            state.pitch = last.pitch;
+            state.z = last.z;
+            state.y = last.y;
+            state.x = last.x;
+            updateDisplay();
+
+            setTimeout(() => {
+                status.innerText = "Ready to generate...";
+                progress.style.width = '0%';
+            }, 3000);
+        }
+
+        // Joystick logic - First Order Control (Incremental)
+        let isDragging = false;
+        const maxDistance = 125 - 30; // zone radius - stick radius
+
+        const stickVelocity = { yaw: 0, pitch: 0 };
+        const MAX_SPEED_YAW = 10; // max degrees per second
+        const MAX_SPEED_PITCH = 10; // max degrees per second
+
+        zone.addEventListener('mousedown', startDrag);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', endDrag);
+
+        function startDrag(e) {
+            if (e.target === stick || e.target === zone) {
+                isDragging = true;
+                updateStick(e);
+            }
+        }
+
+        function drag(e) {
+            if (!isDragging) return;
+            updateStick(e);
+        }
+
+        function endDrag() {
+            if (!isDragging) return;
+            isDragging = false;
+            // Snap joystick visual back to center
+            stick.style.transform = `translate(-50%, -50%) translate(0px, 0px)`;
+
+            // Stop moving
+            stickVelocity.yaw = 0;
+            stickVelocity.pitch = 0;
+
+            updateDisplay();
+            sendData();
+        }
+
+        function updateStick(e) {
+            const rect = zone.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            let dx = e.clientX - centerX;
+            let dy = e.clientY - centerY;
+
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > maxDistance) {
+                dx = (dx / distance) * maxDistance;
+                dy = (dy / distance) * maxDistance;
+            }
+
+            stick.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px)`;
+
+            // Normalize input (-1.0 to 1.0)
+            let nx = dx / maxDistance;
+            let ny = dy / maxDistance;
+
+            // Exponential scaling for smooth fine control
+            let exp_nx = Math.pow(nx, 3);
+            let exp_ny = Math.pow(ny, 3);
+
+            // First order control: Map stick position to Velocity
+            stickVelocity.yaw = exp_nx * MAX_SPEED_YAW;
+            // Moving stick UP (ny < 0) means pitch increases towards 115
+            stickVelocity.pitch = -exp_ny * MAX_SPEED_PITCH;
+
+            updateDisplay();
+            sendData();
+        }
+
+        function resetPosition() {
+            state.yaw = -0.0031;
+            state.pitch = 69.8409;
+            updateDisplay();
+            sendData();
+        }
+
+        async function smoothReturn() {
+            if (state.isMoving) return;
+            state.isMoving = true;
+
+            const targetPose = { ...state }; // This is where we want the physical robot to go
+            const startPose = { yaw: -0.0031, pitch: 69.8409, z: -10.0357, y: -0.0045, x: 113.8079 }; // Home origin
+
+            const dyaw = targetPose.yaw - startPose.yaw;
+            const dpitch = targetPose.pitch - startPose.pitch;
+            const dz = targetPose.z - startPose.z;
+            const dy = targetPose.y - startPose.y;
+            const dx = targetPose.x - startPose.x;
+
+            const maxDiff = Math.max(
+                Math.abs(dyaw), Math.abs(dpitch), Math.abs(dz), Math.abs(dy), Math.abs(dx)
+            );
+
+            if (maxDiff < 0.01) {
+                state.isMoving = false;
+                return;
+            }
+
+            const steps = Math.ceil(maxDiff / MAX_STEP);
+            const recordedPose = [];
+            const recordedIK = [];
+            const btnText = document.querySelector('.reset-btn[onclick="smoothReturn()"]').innerText;
+            document.querySelector('.reset-btn[onclick="smoothReturn()"]').innerText = "生成中...";
+
+            // INSTANT GENERATION
+            // First point: Home (0,0,0,0,0)
+            const formatIK = (v) => v === 0 ? "0" : Number(v.toPrecision(8)).toString();
+            const formatPose = (v) => v === 0 ? "0" : Number(v.toFixed(4)).toString();
+            const startPoseStr = `${formatPose(startPose.yaw)}\t${formatPose(startPose.pitch)}\t${formatPose(startPose.z)}\t${formatPose(startPose.y)}\t${formatPose(startPose.x)}`;
+            recordedPose.push(startPoseStr);
+            const startIk = getMotorAngles(startPose);
+            recordedIK.push(`${formatIK(startIk.theta1)}\t${formatIK(startIk.theta2)}\t${formatIK(startIk.theta3)}\t${formatIK(startIk.theta4)}\t${formatIK(startIk.theta5)}`);
+
+            for (let i = 1; i <= steps; i++) {
+                const tau = i / steps;
+                const t = 10 * Math.pow(tau, 3) - 15 * Math.pow(tau, 4) + 6 * Math.pow(tau, 5);
+
+                let p_yaw = startPose.yaw + dyaw * t;
+                let p_pitch = startPose.pitch + dpitch * t;
+                let p_z = startPose.z + dz * t;
+                let p_y = startPose.y + dy * t;
+                let p_x = startPose.x + dx * t;
+
+                // Formats for txt files
+                const poseStr = `${formatPose(p_yaw)}\t${formatPose(p_pitch)}\t${formatPose(p_z)}\t${formatPose(p_y)}\t${formatPose(p_x)}`;
+                recordedPose.push(poseStr);
+
+                // Calculate IK
+                const currentPoseObj = { yaw: p_yaw, pitch: p_pitch, z: p_z, y: p_y, x: p_x };
+                const ik = getMotorAngles(currentPoseObj);
+
+                // Format for motor (Tab separated, no commas)
+                const ikStr = `${formatIK(ik.theta1)}\t${formatIK(ik.theta2)}\t${formatIK(ik.theta3)}\t${formatIK(ik.theta4)}\t${formatIK(ik.theta5)}`;
+                recordedIK.push(ikStr);
+            }
+
+            // Output formatting: Add Timestamp constraint
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            const timeStamp = `${yyyy}${mm}${dd}_${hh}${min}${ss}`;
+
+            // Output file 1: Pose
+            const poseObjText = recordedPose.join('\n');
+            saveFileLocally(poseObjText, `return_trajectory_pose_${timeStamp}.txt`);
+
+            // Output file 2: Motor IK
+            const ikObjText = recordedIK.join('\n');
+            saveFileLocally(ikObjText, `return_trajectory_motor_${timeStamp}.txt`);
+
+            // We DO NOT force the UI state to change because we are projecting a trajectory for the physical arm to match the current UI
+            document.querySelector('.reset-btn[onclick="smoothReturn()"]').innerText = btnText;
+            lastSentState = { ...state };
+            state.isMoving = false;
+        }
+
+        function saveFileLocally(content, filename) {
+            try {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    // Send directly to the C++ ik_server.exe bypassing the Python bridge
+                    ws.send(`SAVE:${filename}|${content}`);
+                    console.log(`[SAVE CMD] Sent ${filename} to C++ server.`);
+                } else {
+                    alert(`存檔失敗：C++ IK 伺服器尚未連線。請確認 ik_server.exe 已啟動。`);
+                }
+            } catch (e) {
+                alert(`存檔系統發生例外錯誤：\n${e.message}`);
+            }
+        }
+
+        // Control Loop for First Order Update
+        let lastTime = performance.now();
+        function controlLoop(time) {
+            const dt = (time - lastTime) / 1000;
+            lastTime = time;
+
+            if (stickVelocity.yaw !== 0 || stickVelocity.pitch !== 0) {
+                state.yaw += stickVelocity.yaw * dt;
+                state.pitch += stickVelocity.pitch * dt;
+
+                // Apply limits (-45 to 45 for yaw, 65 to 115 for pitch)
+                state.yaw = Math.max(-45, Math.min(45, state.yaw));
+                state.pitch = Math.max(65, Math.min(115, state.pitch));
+
+                updateDisplay();
+                sendData();
+            }
+
+            requestAnimationFrame(controlLoop);
+        }
+        requestAnimationFrame(controlLoop);
+
+        // Sliders
+        ['Z', 'Y', 'X'].forEach(axis => {
+            document.getElementById(`slider${axis}`).addEventListener('input', (e) => {
+                state[axis.toLowerCase()] = parseFloat(e.target.value);
+                updateDisplay();
+                sendData();
+            });
+        });
+
+        function updateDisplay() {
+            document.getElementById('valYaw').innerText = state.yaw.toFixed(2);
+            document.getElementById('valPitch').innerText = state.pitch.toFixed(2);
+            document.getElementById('valZ').innerText = state.z.toFixed(2);
+            document.getElementById('valY').innerText = state.y.toFixed(2);
+            document.getElementById('valX').innerText = state.x.toFixed(2);
+
+            document.getElementById('sliderX').value = state.x;
+            document.getElementById('sliderY').value = state.y;
+            document.getElementById('sliderZ').value = state.z;
+
+            document.getElementById('matrixOut').innerText =
+                `[${state.yaw.toFixed(2)}, ${state.pitch.toFixed(2)}, ${state.z.toFixed(2)}, ${state.y.toFixed(2)}, ${state.x.toFixed(2)}]`;
+
+            // Update the visual dot position
+            const posDot = document.getElementById('posDot');
+            if (posDot) {
+                // Yaw: -45 to 45 maps to 0% to 100%
+                const yawPercent = ((state.yaw + 45) / 90) * 100;
+                // Pitch: 65 to 115 maps to 100% to 0%
+                const pitchPercent = ((115 - state.pitch) / 50) * 100;
+
+                posDot.style.left = `${yawPercent}%`;
+                posDot.style.top = `${pitchPercent}%`;
+            }
+        }
+
+        // Server communication via WebSocket
+        let lastSent = 0;
+        const throttleMs = 16; // ~60Hz max rate
+        let lastSentState = null;
+        const MAX_STEP = 10.0 / 2000.0; // 0.005 units max step size
+
+        function sendData() {
+            if (state.mode !== 'manual' || state.isMoving) return; // Only send data in manual mode and when not interpolation
+            const now = Date.now();
+            if (now - lastSent < throttleMs) return;
+            lastSent = now;
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                if (!lastSentState) {
+                    lastSentState = { ...state };
+                    ws.send(`[${state.yaw.toFixed(4)}, ${state.pitch.toFixed(4)}, ${state.z.toFixed(4)}, ${state.y.toFixed(4)}, ${state.x.toFixed(4)}]`);
+                    return;
+                }
+
+                let dyaw = state.yaw - lastSentState.yaw;
+                let dpitch = state.pitch - lastSentState.pitch;
+                let dz = state.z - lastSentState.z;
+                let dy = state.y - lastSentState.y;
+                let dx = state.x - lastSentState.x;
+
+                let maxDiff = Math.max(
+                    Math.abs(dyaw),
+                    Math.abs(dpitch),
+                    Math.abs(dz),
+                    Math.abs(dy),
+                    Math.abs(dx)
+                );
+
+                if (maxDiff === 0) return;
+
+                let steps = Math.ceil(maxDiff / MAX_STEP);
+                // Limit points per frame to avoid WebSocket blocking or freezing the browser
+                if (steps > 2000) steps = 2000;
+
+                for (let i = 1; i <= steps; i++) {
+                    let t = i / steps;
+                    let iyaw = lastSentState.yaw + dyaw * t;
+                    let ipitch = lastSentState.pitch + dpitch * t;
+                    let iz = lastSentState.z + dz * t;
+                    let iy = lastSentState.y + dy * t;
+                    let ix = lastSentState.x + dx * t;
+                    ws.send(`[${iyaw.toFixed(4)}, ${ipitch.toFixed(4)}, ${iz.toFixed(4)}, ${iy.toFixed(4)}, ${ix.toFixed(4)}]`);
+                }
+
+                lastSentState = { ...state };
+            }
+        }
+
+        // Initial output
+        updateDisplay();
+    </script>
+</body>
+
+</html>

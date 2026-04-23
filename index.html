@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
@@ -13,8 +13,8 @@
         <p class="eyebrow">STM32 Robot Hand Control</p>
         <h1>Yuhan Motor Console</h1>
         <p class="hero-copy">
-          這一版把控制頁、STM32 韌體、PID 調參都放進同一包。
-          頁面可以送 5 軸 target，也可以直接調 Kp / Ki / Kd、hold、backlash。
+          這個頁面用來控制 STM32 機器手，支援 5 軸 target、encoder 監看、PWM 安全限制、
+          軌跡播放，以及每軸 PID / hold / backlash / invert 參數調整。
         </p>
       </div>
       <div class="hero-card">
@@ -37,7 +37,7 @@
       <section class="panel">
         <div class="panel-title-row">
           <h2>Serial</h2>
-          <span class="panel-hint">請用 Edge 或 Chrome</span>
+          <span class="panel-hint">請使用 Edge 或 Chrome</span>
         </div>
 
         <div class="serial-grid">
@@ -55,6 +55,14 @@
           <label class="field">
             <span>Interval (ms)</span>
             <input id="sendIntervalMs" type="number" value="50" min="5" step="5">
+          </label>
+          <label class="field">
+            <span>Target Unit</span>
+            <select id="targetUnitSelect">
+              <option value="count" selected>Raw Count</option>
+              <option value="degree">Degree</option>
+              <option value="radian">Radian</option>
+            </select>
           </label>
           <label class="field">
             <span>Jog Step</span>
@@ -102,6 +110,14 @@
             <span>Playback Interval (ms)</span>
             <input id="trajectoryIntervalMs" type="number" value="5" min="1" step="1">
           </label>
+          <label class="field">
+            <span>Trajectory Unit</span>
+            <select id="trajectoryUnitSelect">
+              <option value="count" selected>Raw Count</option>
+              <option value="degree">Degree</option>
+              <option value="radian">Radian</option>
+            </select>
+          </label>
         </div>
 
         <div class="button-row">
@@ -116,7 +132,7 @@
       <section class="panel wide">
         <div class="panel-title-row">
           <h2>Motor Targets</h2>
-          <span class="panel-hint">目前直接送 raw encoder/count target</span>
+          <span class="panel-hint">可切換 raw count / degree，系統內部仍會轉成 count 傳給 STM32</span>
         </div>
 
         <div id="motorGrid" class="motor-grid"></div>
@@ -124,8 +140,35 @@
 
       <section class="panel wide">
         <div class="panel-title-row">
+          <h2>Angle Calibration</h2>
+          <span class="panel-hint">填每軸 counts/degree，之後頁面就能直接輸入角度</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Motor</th>
+                <th>Counts / Degree</th>
+                <th>Encoder (deg)</th>
+              </tr>
+            </thead>
+            <tbody id="angleTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="button-row">
+          <button id="saveAngleConfigBtn">Save Angle Config</button>
+          <button id="resetAngleConfigBtn">Reset Angle Config</button>
+        </div>
+
+        <p id="angleStatus" class="subtle-text">先填好每軸 counts/degree，切到 degree 模式才會準確。</p>
+      </section>
+
+      <section class="panel wide">
+        <div class="panel-title-row">
           <h2>PID Tuning</h2>
-          <span class="panel-hint">建議先把 backlash 保持 0，再調 Kp / Kd</span>
+          <span class="panel-hint">建議先關閉 hold / backlash，再調整 Kp、Kd 與方向</span>
         </div>
 
         <div class="button-row">
@@ -133,6 +176,25 @@
           <button id="applyAllConfigBtn" class="primary">Apply All</button>
           <button id="disableBacklashBtn">Backlash Off All</button>
           <button id="disableHoldBtn">Hold Off All</button>
+        </div>
+
+        <div class="serial-grid">
+          <label class="field">
+            <span>Preset Name</span>
+            <input id="presetNameInput" type="text" placeholder="例如：Trajectory Test A">
+          </label>
+          <label class="field">
+            <span>Saved Presets</span>
+            <select id="presetSelect">
+              <option value="">No saved preset</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="button-row">
+          <button id="savePresetBtn">Save Current PID</button>
+          <button id="loadPresetBtn">Load Selected PID</button>
+          <button id="deletePresetBtn">Delete Selected PID</button>
         </div>
 
         <div class="table-wrap">
@@ -148,6 +210,8 @@
                 <th>Deadband</th>
                 <th>Backlash</th>
                 <th>Max PWM</th>
+                <th>Motor Inv</th>
+                <th>Encoder Inv</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -155,13 +219,13 @@
           </table>
         </div>
 
-        <p id="pidStatus" class="subtle-text">已採用保守預設值：hold 關閉、backlash 關閉。</p>
+        <p id="pidStatus" class="subtle-text">先按 Read Config，再修改單軸設定。</p>
       </section>
 
       <section class="panel">
         <div class="panel-title-row">
           <h2>Encoder Monitor</h2>
-          <span class="panel-hint">可解析 `ENC:` / `CFG,`</span>
+          <span class="panel-hint">解析 `ENC:`、`CFG,` 與 `PWM:`</span>
         </div>
 
         <div class="button-row">
@@ -179,6 +243,7 @@
                 <th>Motor</th>
                 <th>Target</th>
                 <th>Encoder</th>
+                <th>Encoder (deg)</th>
                 <th>Delta</th>
                 <th>Current PWM</th>
                 <th>Max PWM</th>
@@ -194,7 +259,7 @@
       <section class="panel">
         <div class="panel-title-row">
           <h2>Serial Log</h2>
-          <span class="panel-hint">顯示最近 200 行</span>
+          <span class="panel-hint">最多保留最近 200 行</span>
         </div>
         <pre id="serialLog" class="serial-log">Waiting for serial data...</pre>
       </section>
@@ -223,6 +288,10 @@
           <strong class="encoder-value">0</strong>
         </div>
         <div>
+          <span class="status-label">Encoder (deg)</span>
+          <strong class="encoder-degree-value">0.000</strong>
+        </div>
+        <div>
           <span class="status-label">Error</span>
           <strong class="error-value">0</strong>
         </div>
@@ -245,12 +314,22 @@
       <td><input class="pid-deadband" type="number" step="1"></td>
       <td><input class="pid-backlash" type="number" step="1"></td>
       <td><input class="pid-max-pwm" type="number" step="1" min="0" max="255"></td>
+      <td><input class="pid-motor-invert" type="checkbox"></td>
+      <td><input class="pid-encoder-invert" type="checkbox"></td>
       <td>
         <div class="button-row compact">
           <button class="pid-read">Read</button>
           <button class="pid-apply">Apply</button>
         </div>
       </td>
+    </tr>
+  </template>
+
+  <template id="angleRowTemplate">
+    <tr>
+      <td class="angle-motor-label"></td>
+      <td><input class="angle-counts-per-degree" type="number" step="0.0001" min="0"></td>
+      <td class="angle-encoder-degree">0.000</td>
     </tr>
   </template>
 

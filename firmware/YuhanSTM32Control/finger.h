@@ -25,6 +25,8 @@ class FingerController {
   void setHold(int holdPwm, unsigned long holdMs, long errDeadband);
   void setBacklash(long backlashComp);
   void setMaxPwm(int maxPwm);
+  void setMotorInvert(bool invert);
+  void setEncoderInvert(bool invert);
   void resetControllerState();
 
   long getTarget() const;
@@ -38,6 +40,8 @@ class FingerController {
   long getBacklash() const;
   int getMaxPwm() const;
   int getLastOutput() const;
+  bool getMotorInvert() const;
+  bool getEncoderInvert() const;
   int computeU();
   void applyU(int u);
   void sendCmd();

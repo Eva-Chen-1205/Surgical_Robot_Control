@@ -7,36 +7,29 @@ const int ENCB_PINS[NUM_ENCODERS] = {PB15, PB13, PB4, PB11, PA5};
 
 volatile long encoderCount[NUM_ENCODERS] = {0, 0, 0, 0, 0};
 volatile int16_t encoder4Sub = 0;
+volatile bool encoderInvert[NUM_ENCODERS] = {false, false, false, false, false};
 
-inline void readNormal(int idx) {
+inline int readStep(int idx) {
   const bool a = digitalRead(ENCA_PINS[idx]);
   const bool b = digitalRead(ENCB_PINS[idx]);
-  if (a == b) {
-    encoderCount[idx]++;
-  } else {
-    encoderCount[idx]--;
+  int step = (a == b) ? 1 : -1;
+  if (encoderInvert[idx]) {
+    step = -step;
   }
+  return step;
 }
 
-inline void readInvert(int idx) {
-  const bool a = digitalRead(ENCA_PINS[idx]);
-  const bool b = digitalRead(ENCB_PINS[idx]);
-  if (a == b) {
-    encoderCount[idx]--;
-  } else {
-    encoderCount[idx]++;
-  }
+inline void readEncoder(int idx) {
+  encoderCount[idx] += readStep(idx);
 }
 
-void readEncoder0() { readInvert(0); }
-void readEncoder1() { readInvert(1); }
-void readEncoder2() { readNormal(2); }
-void readEncoder3() { readNormal(3); }
+void readEncoder0() { readEncoder(0); }
+void readEncoder1() { readEncoder(1); }
+void readEncoder2() { readEncoder(2); }
+void readEncoder3() { readEncoder(3); }
 
 void readEncoder4() {
-  const bool a = digitalRead(ENCA_PINS[4]);
-  const bool b = digitalRead(ENCB_PINS[4]);
-  const int step = (a == b) ? 1 : -1;
+  const int step = readStep(4);
   encoder4Sub += step;
 
   if (encoder4Sub >= 100) {
@@ -71,6 +64,27 @@ long getEncoderCount(int index) {
   const long count = encoderCount[index];
   interrupts();
   return count;
+}
+
+void setEncoderInvert(int index, bool invert) {
+  if (index < 0 || index >= NUM_ENCODERS) {
+    return;
+  }
+
+  noInterrupts();
+  encoderInvert[index] = invert;
+  interrupts();
+}
+
+bool getEncoderInvert(int index) {
+  if (index < 0 || index >= NUM_ENCODERS) {
+    return false;
+  }
+
+  noInterrupts();
+  const bool invert = encoderInvert[index];
+  interrupts();
+  return invert;
 }
 
 void resetEncoderCount(int index) {

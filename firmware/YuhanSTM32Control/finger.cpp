@@ -112,6 +112,16 @@ void FingerController::setMaxPwm(int maxPwm) {
   _maxPwm = maxPwm;
 }
 
+void FingerController::setMotorInvert(bool invert) {
+  _motor.setInvert(invert);
+  resetControllerState();
+}
+
+void FingerController::setEncoderInvert(bool invert) {
+  ::setEncoderInvert(_encoderIndex, invert);
+  resetControllerState();
+}
+
 void FingerController::resetControllerState() {
   _error = 0.0f;
   _prevError = 0.0f;
@@ -143,6 +153,10 @@ long FingerController::getErrDeadband() const { return _errDeadband; }
 long FingerController::getBacklash() const { return _backlashComp; }
 int FingerController::getMaxPwm() const { return _maxPwm; }
 int FingerController::getLastOutput() const { return _lastOutput; }
+bool FingerController::getMotorInvert() const { return _motor.isInverted(); }
+bool FingerController::getEncoderInvert() const {
+  return ::getEncoderInvert(_encoderIndex);
+}
 
 int FingerController::computeU() {
   const float dTarget = static_cast<float>(_target) - _prevTarget;
