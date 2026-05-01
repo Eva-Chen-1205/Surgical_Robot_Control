@@ -191,6 +191,21 @@ int FingerController::computeU() {
   }
 
   _error = effectiveTarget - static_cast<float>(readEncoder());
+  const long deadband = (_errDeadband > 0) ? _errDeadband : 3;
+  const long absError = labs(static_cast<long>(_error));
+  const bool insideDeadband = absError <= deadband;
+
+  if (_holdPwm <= 0 && _settled) {
+    if (absError < _releaseDeadband) {
+      _integral = 0.0f;
+      _prevError = _error;
+      _prevTarget = static_cast<float>(_target);
+      _prevTargetDir = targetDir;
+      return 0;
+    }
+
+    _settled = false;
+  }
 
   // Crossing the target is a good time to dump integral residue.
   if ((_error > 0.0f && _prevError < 0.0f) || (_error < 0.0f && _prevError > 0.0f)) {
@@ -208,9 +223,23 @@ int FingerController::computeU() {
     _lastDir = -1;
   }
 
-  const long deadband = (_errDeadband > 0) ? _errDeadband : 3;
-  const long absError = labs(static_cast<long>(_error));
-  const bool insideDeadband = absError <= deadband;
+  if (insideDeadband) {
+    // When hold is disabled, entering the deadband should behave like a hard stop.
+    // This avoids small residual I-term or D-term output keeping the axis creeping
+    // around the target instead of settling cleanly.
+    _integral = 0.0f;
+
+    if (_holdPwm <= 0) {
+      _settled = true;
+      _holding = false;
+      _holdLatched = false;
+      _holdUntil = 0;
+      _prevError = _error;
+      _prevTarget = static_cast<float>(_target);
+      _prevTargetDir = targetDir;
+      return 0;
+    }
+  }
 
   if (insideDeadband && _targetStill) {
     // Entering the settle zone should zero integral to prevent hunting.
